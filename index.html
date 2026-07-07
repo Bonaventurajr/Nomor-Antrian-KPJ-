@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>Nomor Antrian KPJ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #e8f0fe 0%, #d4e4f7 100%);
+            min-height: 100vh;
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .app-wrapper {
+            max-width: 600px;
+            width: 100%;
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(20px);
+            border-radius: 28px;
+            padding: 24px 20px;
+            box-shadow: 0 20px 60px rgba(26, 67, 113, 0.15);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        /* ===== HEADER ===== */
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        /* LOGO DI ATAS */
+        .logo-atas {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 8px;
+            gap: 16px;
+        }
+        .logo-atas .logo-wrapper {
+            padding: 6px 20px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .logo-atas .logo-teks {
+            font-size: 36px;
+            font-weight: 900;
+            color: #1a2a4a;
+            letter-spacing: 4px;
+            font-family: 'Arial Black', sans-serif;
+        }
+        .logo-atas img {
+            height: 80px;
+            width: auto;
+            object-fit: contain;
+        }
+
+        /* Garis di samping logo */
+        .logo-atas .line {
+            flex: 1;
+            height: 2px;
+            max-width: 60px;
+            background: linear-gradient(90deg, #2a5298, transparent);
+        }
+        .logo-atas .line:first-child {
+            background: linear-gradient(90deg, transparent, #2a5298);
+        }
+
+        .header h1 {
+            font-size: 22px;
+            color: #1a2a4a;
+            font-weight: 700;
+            margin: 0;
+        }
+        .header h1 span {
+            color: #2a5298;
+        }
+        .header p {
+            color: #64748b;
+            font-size: 13px;
+            margin-top: 2px;
+        }
+
+        .info-badge {
+            background: linear-gradient(135deg, #eff6ff, #dbeafe);
+            border-radius: 12px;
+            padding: 10px 14px;
+            margin-bottom: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 13px;
+            color: #1e3c72;
+            border: 1px solid rgba(30, 60, 114, 0.1);
+        }
+        .info-badge i { font-size: 18px; color: #2a5298; }
+
+        .form-card {
+            background: #f8faff;
+            border-radius: 16px;
+            padding: 18px 16px;
+            border: 1px solid #e8edf5;
+            margin-bottom: 18px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+            position: relative;
+        }
+        .form-group:last-child { margin-bottom: 0; }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #1a2a4a;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+        .form-group label i {
+            margin-right: 6px;
+            color: #2a5298;
+            width: 18px;
+        }
+
+        .form-row-2 {
+            display: flex;
+            gap: 10px;
+        }
+        .form-row-2 .form-group {
+            flex: 1;
+        }
+
+        .autocomplete-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .autocomplete-input {
+            width: 100%;
+            padding: 11px 14px;
+            border: 2px solid #e8edf5;
+            border-radius: 12px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            outline: none;
+            background: white;
+            font-family: inherit;
+        }
+        .autocomplete-input:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.08);
+        }
+        .autocomplete-input.highlight {
+            border-color: #059669;
+            background: #f0fdf4;
+        }
+
+        .autocomplete-list {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 2px solid #2a5298;
+            border-top: none;
+            border-radius: 0 0 12px 12px;
+            max-height: 180px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+            margin-top: -2px;
+        }
+        .autocomplete-list.show { display: block; }
+
+        .autocomplete-item {
+            padding: 10px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f4fa;
+            transition: all 0.2s ease;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .autocomplete-item:last-child { border-bottom: none; }
+        .autocomplete-item:hover { background: #e8f0fe; }
+        .autocomplete-item .sub {
+            font-size: 12px;
+            color: #94a3b8;
+            font-weight: 500;
+        }
+        .autocomplete-item .main {
+            font-weight: 600;
+            color: #1a2a4a;
+        }
+        .autocomplete-item .highlight {
+            background: #fbbf24;
+            padding: 0 2px;
+            border-radius: 2px;
+        }
+        .autocomplete-item .badge-info {
+            font-size: 11px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: #dbeafe;
+            color: #1e3c72;
+        }
+        .autocomplete-empty {
+            padding: 12px 16px;
+            color: #94a3b8;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .form-actions .btn {
+            flex: 1;
+            min-width: 100px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+        }
+        .btn:active { transform: scale(0.97); }
+
+        .btn-success {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.25);
+        }
+        .btn-success:hover { transform: translateY(-2px); }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            box-shadow: 0 4px 14px rgba(30, 60, 114, 0.25);
+        }
+        .btn-primary:hover { transform: translateY(-2px); }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc2626, #ef4444);
+            color: white;
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.25);
+        }
+        .btn-danger:hover { transform: translateY(-2px); }
+
+        .btn-outline {
+            background: white;
+            color: #1a2a4a;
+            border: 2px solid #d0ddee;
+        }
+        .btn-outline:hover { border-color: #2a5298; background: #f0f7ff; }
+
+        .btn-sm { padding: 6px 14px; font-size: 12px; min-width: auto; }
+
+        .ticket {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border-radius: 18px;
+            padding: 18px;
+            text-align: center;
+            margin: 16px 0;
+            display: none;
+            border: 2px solid rgba(5, 150, 105, 0.2);
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .ticket.show { display: block; }
+        @keyframes popIn {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .ticket .check { font-size: 36px; color: #059669; display: block; }
+        .ticket h3 { color: #065f46; font-size: 14px; }
+        .ticket .nomor {
+            font-size: 48px;
+            font-weight: 800;
+            color: #1e3c72;
+            letter-spacing: 4px;
+            line-height: 1.1;
+        }
+        .ticket .detail { color: #065f46; font-size: 13px; margin-top: 4px; }
+        .ticket .detail strong { color: #1a2a4a; }
+
+        .table-section {
+            background: white;
+            border-radius: 18px;
+            padding: 14px 16px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+            margin: 16px 0;
+        }
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .table-header h4 { font-size: 14px; color: #1a2a4a; }
+        .table-header h4 i { margin-right: 8px; color: #2a5298; }
+        .table-header .count {
+            background: #e8edf5;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            color: #1a2a4a;
+        }
+        .table-wrap { overflow-x: auto; border-radius: 12px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        thead {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+        }
+        th {
+            padding: 10px 12px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f4fa;
+            color: #1a2a4a;
+        }
+        tr:hover td { background: #f8faff; }
+        .nomor-cell { font-weight: 700; color: #2a5298; }
+        .empty-state { text-align: center; padding: 24px; color: #94a3b8; }
+        .empty-state i { font-size: 32px; display: block; margin-bottom: 4px; color: #cbd5e1; }
+
+        .bottom-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .bottom-actions .btn { flex: 1; min-width: 100px; }
+
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #1a2a4a;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            font-size: 14px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 90%;
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        .toast.success { background: #059669; }
+        .toast.error { background: #dc2626; }
+        .toast.info { background: #2a5298; }
+
+        @media (max-width: 480px) {
+            .app-wrapper { padding: 16px 14px; }
+            .header h1 { font-size: 18px; }
+            .logo-atas img { height: 40px; }
+            .form-row-2 { flex-direction: column; gap: 0; }
+            .form-actions .btn { min-width: 100%; }
+            .bottom-actions .btn { min-width: 100%; }
+            .logo-atas .line { max-width: 30px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast">
+        <i class="fas fa-check-circle"></i>
+        <span id="toastMessage">Sukses!</span>
+    </div>
+
+    <!-- APP -->
+    <div class="app-wrapper">
+
+        <!-- ===== HEADER DENGAN LOGO DI ATAS ===== -->
+        <div class="header">
+            <!-- LOGO DI ATAS -->
+            <div class="logo-atas">
+                <span class="line"></span>
+                <div class="logo-wrapper">
+                    <!-- Ganti dengan logo Anda -->
+                    <img src="abcc.png" alt="Logo" />
+                    <!-- Atau pakai teks jika gambar tidak ada -->
+                    <!-- <span class="logo-teks">ABC</span> -->
+                </div>
+                <span class="line"></span>
+            </div>
+            <!-- TULISAN NOMOR ANTRIAN -->
+            <h1>Nomor Antrian <span>KPJ</span></h1>
+            <p>Kartu Pekerja Jakarta PT International Chemical Industry</p>
+        </div>
+
+        <!-- INFO -->
+        <div class="info-badge">
+            <i class="fas fa-search"></i>
+            <span>Ketik di kolom NIP, Nama, atau Bagian untuk mencari</span>
+        </div>
+
+        <!-- FORM 3 KOLOM -->
+        <div class="form-card">
+
+            <!-- ROW: NIP + Nama -->
+            <div class="form-row-2">
+                <div class="form-group">
+                    <label><i class="fas fa-id-card"></i> NIP</label>
+                    <div class="autocomplete-container">
+                        <input 
+                            type="text" 
+                            id="inputNip" 
+                            class="autocomplete-input" 
+                            placeholder="Ketik NIP..." 
+                            autocomplete="off"
+                            oninput="filterAutocomplete('nip', this.value)"
+                            onfocus="filterAutocomplete('nip', this.value)"
+                            onkeydown="handleKeydown('nip', event)"
+                        />
+                        <div class="autocomplete-list" id="listNip"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label><i class="fas fa-user"></i> Nama</label>
+                    <div class="autocomplete-container">
+                        <input 
+                            type="text" 
+                            id="inputNama" 
+                            class="autocomplete-input" 
+                            placeholder="Ketik Nama..." 
+                            autocomplete="off"
+                            oninput="filterAutocomplete('nama', this.value)"
+                            onfocus="filterAutocomplete('nama', this.value)"
+                            onkeydown="handleKeydown('nama', event)"
+                        />
+                        <div class="autocomplete-list" id="listNama"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bagian -->
+            <div class="form-group">
+                <label><i class="fas fa-building"></i> Bagian</label>
+                <div class="autocomplete-container">
+                    <input 
+                        type="text" 
+                        id="inputBagian" 
+                        class="autocomplete-input" 
+                        placeholder="Ketik Bagian..." 
+                        autocomplete="off"
+                        oninput="filterAutocomplete('bagian', this.value)"
+                        onfocus="filterAutocomplete('bagian', this.value)"
+                        onkeydown="handleKeydown('bagian', event)"
+                    />
+                    <div class="autocomplete-list" id="listBagian"></div>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button class="btn btn-success" onclick="ambilAntrian()">
+                    <i class="fas fa-ticket-alt"></i> Ambil Nomor
+                </button>
+            </div>
+
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-outline btn-sm" onclick="tambahPeserta()">
+                    <i class="fas fa-plus"></i> Tambah Peserta
+                </button>
+                <button class="btn btn-outline btn-sm" onclick="clearForm()">
+                    <i class="fas fa-eraser"></i> Clear
+                </button>
+            </div>
+        </div>
+
+        <!-- TICKET -->
+        <div class="ticket" id="ticket">
+            <span class="check"><i class="fas fa-check-circle"></i></span>
+            <h3>Nomor Antrian Anda</h3>
+            <div class="nomor" id="nomorAntrian">001</div>
+            <div class="detail" id="detailAntrian">
+                <strong>Nama</strong> · Bagian
+            </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="table-section">
+            <div class="table-header">
+                <h4><i class="fas fa-list-ul"></i> Data Antrian</h4>
+                <span class="count" id="countAntrian">0 antrian</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>#</th><th>NIP</th><th>Nama</th><th>Bagian</th><th>Nomor</th></tr></thead>
+                    <tbody id="tbodyAntrian">
+                        <tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- BOTTOM -->
+        <div class="bottom-actions">
+            <button class="btn btn-primary" onclick="saveExcel()"><i class="fas fa-file-excel"></i> Save Excel</button>
+            <button class="btn btn-outline" onclick="exportJson()"><i class="fas fa-code"></i> JSON</button>
+            <button class="btn btn-danger" onclick="resetAll()"><i class="fas fa-trash-alt"></i> Reset</button>
+        </div>
+
+        <p style="text-align:center; margin-top:14px; font-size:12px; color:#94a3b8;">
+            <i class="fas fa-database"></i> Data tersimpan otomatis
+        </p>
+    </div>
+
+    <script>
+        // ============================================================
+        // MASTER DATA PESERTA
+        // ============================================================
+        let masterPeserta = [];
+
+        let antrian = [];
+        let nomorTerakhir = 0;
+
+        let selectedIndex = { nip: -1, nama: -1, bagian: -1 };
+        let filteredData = { nip: [], nama: [], bagian: [] };
+
+        // ============================================================
+        // TOAST
+        // ============================================================
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toastMessage');
+            toast.className = 'toast ' + type;
+            msg.textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ============================================================
+        // AUTOCOMPLETE
+        // ============================================================
+        function filterAutocomplete(field, query) {
+            const listMap = {
+                nip: 'listNip',
+                nama: 'listNama',
+                bagian: 'listBagian'
+            };
+            const list = document.getElementById(listMap[field]);
+            const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
+            const input = document.getElementById(inputId);
+
+            if (!query || query.length < 1) {
+                list.classList.remove('show');
+                return;
+            }
+
+            const q = query.toLowerCase().trim();
+            let data = [];
+
+            if (field === 'nip') {
+                data = masterPeserta.filter(p => p.nip && p.nip.includes(q));
+            } else if (field === 'nama') {
+                data = masterPeserta.filter(p => p.nama && p.nama.toLowerCase().includes(q));
+            } else if (field === 'bagian') {
+                const uniqueBagian = [...new Set(masterPeserta.map(p => p.bagian).filter(b => b && b.toLowerCase().includes(q)))];
+                data = uniqueBagian.map(b => ({ bagian: b }));
+            }
+
+            if (data.length === 0) {
+                list.innerHTML = `<div class="autocomplete-empty">Tidak ditemukan</div>`;
+                list.classList.add('show');
+                return;
+            }
+
+            data = data.slice(0, 10);
+            filteredData[field] = data;
+            selectedIndex[field] = -1;
+
+            let html = '';
+            data.forEach((p, idx) => {
+                let display = '';
+                let sub = '';
+                let badge = '';
+
+                if (field === 'nip') {
+                    display = p.nip;
+                    sub = p.nama || '-';
+                    badge = p.bagian || 'Karyawan';
+                    const qLower = q.toLowerCase();
+                    if (p.nip.toLowerCase().includes(qLower)) {
+                        const start = p.nip.toLowerCase().indexOf(qLower);
+                        const end = start + q.length;
+                        display = p.nip.substring(0, start) + 
+                            `<span class="highlight">${p.nip.substring(start, end)}</span>` + 
+                            p.nip.substring(end);
+                    }
+                } else if (field === 'nama') {
+                    display = p.nama;
+                    sub = p.nip || '-';
+                    badge = p.bagian || 'Karyawan';
+                    const qLower = q.toLowerCase();
+                    if (p.nama.toLowerCase().includes(qLower)) {
+                        const start = p.nama.toLowerCase().indexOf(qLower);
+                        const end = start + q.length;
+                        display = p.nama.substring(0, start) + 
+                            `<span class="highlight">${p.nama.substring(start, end)}</span>` + 
+                            p.nama.substring(end);
+                    }
+                } else if (field === 'bagian') {
+                    display = p.bagian;
+                    sub = 'Bagian';
+                    badge = '';
+                    const qLower = q.toLowerCase();
+                    if (p.bagian.toLowerCase().includes(qLower)) {
+                        const start = p.bagian.toLowerCase().indexOf(qLower);
+                        const end = start + q.length;
+                        display = p.bagian.substring(0, start) + 
+                            `<span class="highlight">${p.bagian.substring(start, end)}</span>` + 
+                            p.bagian.substring(end);
+                    }
+                }
+
+                html += `
+                    <div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
+                        <div>
+                            <div class="main">${display}</div>
+                            ${sub ? `<div class="sub">${sub}</div>` : ''}
+                        </div>
+                        ${badge ? `<span class="badge-info">${badge}</span>` : ''}
+                    </div>
+                `;
+            });
+
+            list.innerHTML = html;
+            list.classList.add('show');
+            if (input) input.classList.add('highlight');
+        }
+
+        function selectPeserta(field, index) {
+            const data = filteredData[field];
+            if (!data || !data[index]) return;
+
+            const p = data[index];
+
+            if (field === 'nip') {
+                document.getElementById('inputNip').value = p.nip;
+                document.getElementById('inputNama').value = p.nama || '';
+                document.getElementById('inputBagian').value = p.bagian || '';
+            } else if (field === 'nama') {
+                document.getElementById('inputNip').value = p.nip || '';
+                document.getElementById('inputNama').value = p.nama;
+                document.getElementById('inputBagian').value = p.bagian || '';
+            } else if (field === 'bagian') {
+                document.getElementById('inputBagian').value = p.bagian;
+                const full = masterPeserta.find(m => m.bagian === p.bagian);
+                if (full) {
+                    document.getElementById('inputNip').value = full.nip || '';
+                    document.getElementById('inputNama').value = full.nama || '';
+                }
+            }
+
+            closeAllLists();
+            document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
+            ambilAntrian();
+        }
+
+        function handleKeydown(field, e) {
+            const listMap = {
+                nip: 'listNip',
+                nama: 'listNama',
+                bagian: 'listBagian'
+            };
+            const list = document.getElementById(listMap[field]);
+            const items = list.querySelectorAll('.autocomplete-item');
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    selectedIndex[field] = (selectedIndex[field] + 1) % items.length;
+                    highlightItem(items, selectedIndex[field]);
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (items.length > 0) {
+                    selectedIndex[field] = (selectedIndex[field] - 1 + items.length) % items.length;
+                    highlightItem(items, selectedIndex[field]);
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (selectedIndex[field] >= 0 && selectedIndex[field] < items.length) {
+                    items[selectedIndex[field]].click();
+                } else if (filteredData[field] && filteredData[field].length === 1) {
+                    selectPeserta(field, 0);
+                } else {
+                    ambilAntrian();
+                }
+            } else if (e.key === 'Escape') {
+                list.classList.remove('show');
+                document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
+            }
+        }
+
+        function highlightItem(items, index) {
+            items.forEach((item, idx) => {
+                item.style.background = idx === index ? '#dbeafe' : '';
+            });
+            if (index >= 0 && index < items.length) {
+                items[index].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function closeAllLists() {
+            document.querySelectorAll('.autocomplete-list').forEach(el => el.classList.remove('show'));
+            document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
+        }
+
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.autocomplete-container')) {
+                closeAllLists();
+            }
+        });
+
+        // ============================================================
+        // AMBIL ANTRIAN
+        // ============================================================
+        function ambilAntrian() {
+            const nip = document.getElementById('inputNip').value.trim();
+            const nama = document.getElementById('inputNama').value.trim();
+            const bagian = document.getElementById('inputBagian').value.trim();
+
+            if (!nip || !nama || !bagian) {
+                showToast('⚠️ NIP, Nama, dan Bagian harus diisi!', 'error');
+                return;
+            }
+
+            const cek = antrian.find(a => a.nip === nip);
+            if (cek) {
+                showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cek.nomor}`, 'error');
+                return;
+            }
+
+            if (!masterPeserta.some(p => p.nip === nip)) {
+                masterPeserta.push({ nip, nama, bagian });
+                simpanSuggestionKeLocalStorage();
+            }
+
+            nomorTerakhir++;
+            const nomorBaru = String(nomorTerakhir).padStart(3, '0');
+
+            antrian.push({ nip, nama, bagian, nomor: nomorBaru });
+            renderTabel();
+
+            document.getElementById('nomorAntrian').textContent = nomorBaru;
+            document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+            document.getElementById('ticket').classList.add('show');
+
+            clearForm();
+            simpanKeLocalStorage();
+            showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+        }
+
+        // ============================================================
+        // CLEAR FORM
+        // ============================================================
+        function clearForm() {
+            document.getElementById('inputNip').value = '';
+            document.getElementById('inputNama').value = '';
+            document.getElementById('inputBagian').value = '';
+            document.getElementById('inputNip').focus();
+            closeAllLists();
+        }
+
+        // ============================================================
+        // TAMBAH PESERTA - SUDAH DIPERBAIKI
+        // ============================================================
+        function tambahPeserta() {
+            const nip = prompt('Masukkan NIP:', '');
+            if (nip === null) return; // jika cancel
+            if (!nip.trim()) {
+                showToast('⚠️ NIP harus diisi!', 'error');
+                return;
+            }
+            
+            const nama = prompt('Masukkan Nama:', '');
+            if (nama === null) return;
+            if (!nama.trim()) {
+                showToast('⚠️ Nama harus diisi!', 'error');
+                return;
+            }
+            
+            const bagian = prompt('Masukkan Bagian:', 'Karyawan') || 'Karyawan';
+
+            if (masterPeserta.some(p => p.nip === nip.trim())) {
+                showToast('⚠️ NIP sudah terdaftar!', 'error');
+                return;
+            }
+
+            masterPeserta.push({ 
+                nip: nip.trim(), 
+                nama: nama.trim(), 
+                bagian: bagian.trim() 
+            });
+            
+            simpanSuggestionKeLocalStorage();
+            showToast(`✅ Peserta "${nama.trim()}" ditambahkan`, 'success');
+        }
+
+        // ============================================================
+        // RENDER TABEL
+        // ============================================================
+        function renderTabel() {
+            const tbody = document.getElementById('tbodyAntrian');
+            const count = document.getElementById('countAntrian');
+            count.textContent = antrian.length + ' antrian';
+
+            if (antrian.length === 0) {
+                tbody.innerHTML = `
+                    <tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
+                `;
+                return;
+            }
+
+            let html = '';
+            antrian.forEach((a, idx) => {
+                html += `
+                    <tr>
+                        <td>${idx + 1}</td>
+                        <td>${a.nip}</td>
+                        <td>${a.nama}</td>
+                        <td>${a.bagian}</td>
+                        <td class="nomor-cell">${a.nomor}</td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // ============================================================
+        // SAVE EXCEL
+        // ============================================================
+        function saveExcel() {
+            if (antrian.length === 0) {
+                showToast('⚠️ Belum ada data untuk disimpan', 'error');
+                return;
+            }
+
+            let csv = 'No,NIP,Nama,Bagian,Nomor Antrian\n';
+            antrian.forEach((a, idx) => {
+                csv += `${idx+1},${a.nip},${a.nama},${a.bagian},${a.nomor}\n`;
+            });
+
+            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `Antrian_KPJ_${new Date().toISOString().slice(0,10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+
+            showToast('📥 File CSV berhasil di-download!', 'success');
+        }
+
+        // ============================================================
+        // EXPORT JSON
+        // ============================================================
+        function exportJson() {
+            if (antrian.length === 0) {
+                showToast('⚠️ Belum ada data', 'error');
+                return;
+            }
+            const json = JSON.stringify(antrian, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `antrian_kpj_${new Date().toISOString().slice(0,10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            showToast('📥 File JSON berhasil di-download!', 'success');
+        }
+
+        // ============================================================
+        // RESET
+        // ============================================================
+        function resetAll() {
+            if (antrian.length === 0) return;
+            if (!confirm('Yakin ingin menghapus semua data antrian?')) return;
+
+            antrian = [];
+            nomorTerakhir = 0;
+            renderTabel();
+            document.getElementById('ticket').classList.remove('show');
+            localStorage.removeItem('antrianSembako');
+            showToast('🔄 Semua data antrian direset', 'info');
+        }
+
+        // ============================================================
+        // LOCAL STORAGE
+        // ============================================================
+        function simpanKeLocalStorage() {
+            localStorage.setItem('antrianSembako', JSON.stringify({ antrian, nomorTerakhir }));
+        }
+
+        function loadDariLocalStorage() {
+            const data = localStorage.getItem('antrianSembako');
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    antrian = parsed.antrian || [];
+                    nomorTerakhir = parsed.nomorTerakhir || 0;
+                    renderTabel();
+                    if (antrian.length > 0) {
+                        const last = antrian[antrian.length - 1];
+                        document.getElementById('nomorAntrian').textContent = last.nomor;
+                        document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
+                        document.getElementById('ticket').classList.add('show');
+                    }
+                } catch (e) {}
+            }
+        }
+
+        function simpanSuggestionKeLocalStorage() {
+            localStorage.setItem('masterPeserta', JSON.stringify(masterPeserta));
+        }
+
+        function loadSuggestionDariLocalStorage() {
+            const data = localStorage.getItem('masterPeserta');
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        masterPeserta = parsed;
+                    }
+                } catch (e) {}
+            }
+        }
+
+        // ============================================================
+        // INIT
+        // ============================================================
+        window.onload = function() {
+            loadSuggestionDariLocalStorage();
+            loadDariLocalStorage();
+            if (antrian.length === 0) {
+                document.getElementById('inputNip').focus();
+            }
+        };
+    </script>
+</body>
+</html>
