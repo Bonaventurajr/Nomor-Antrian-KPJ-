@@ -817,41 +817,54 @@
         // ============================================================
         // AMBIL ANTRIAN
         // ============================================================
-        function ambilAntrian() {
-            const nip = document.getElementById('inputNip').value.trim();
-            const nama = document.getElementById('inputNama').value.trim();
-            const bagian = document.getElementById('inputBagian').value.trim();
+       function ambilAntrian() {
+        const nip = document.getElementById('inputNip').value.trim();
+        const nama = document.getElementById('inputNama').value.trim();
+        const bagian = document.getElementById('inputBagian').value.trim();
 
-            if (!nip || !nama || !bagian) {
-                showToast('⚠️ NIP, Nama, dan Bagian harus diisi!', 'error');
-                return;
-            }
+        if (!nip || !nama || !bagian) {
+            showToast('⚠️ NIP, Nama, dan Bagian harus diisi!', 'error');
+            return;
+        }
 
-            const cek = antrian.find(a => a.nip === nip);
-            if (cek) {
-                showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cek.nomor}`, 'error');
-                return;
-            }
+        // Cek duplikat
+        const cek = antrian.find(a => a.nip === nip);
+        if (cek) {
+            showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cek.nomor}`, 'error');
+            clearForm(); // Reset jika duplikat
+            return;
+        }
 
-            if (!masterPeserta.some(p => p.nip === nip)) {
-                masterPeserta.push({ nip, nama, bagian });
+        // Tambahkan ke master jika belum ada
+        if (!masterPeserta.some(p => p.nip === nip)) {
+            masterPeserta.push({ nip, nama, bagian });
+            simpanSuggestionKeLocalStorage();
+        } else {
+            // Update data master jika ada perubahan
+            const existing = masterPeserta.find(p => p.nip === nip);
+            if (existing) {
+                existing.nama = nama;
+                existing.bagian = bagian;
                 simpanSuggestionKeLocalStorage();
             }
-
-            nomorTerakhir++;
-            const nomorBaru = String(nomorTerakhir).padStart(3, '0');
-
-            antrian.push({ nip, nama, bagian, nomor: nomorBaru });
-            renderTabel();
-
-            document.getElementById('nomorAntrian').textContent = nomorBaru;
-            document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
-            document.getElementById('ticket').classList.add('show');
-
-            clearForm();
-            simpanKeLocalStorage();
-            showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
         }
+
+        nomorTerakhir++;
+        const nomorBaru = String(nomorTerakhir).padStart(3, '0');
+
+        antrian.push({ nip, nama, bagian, nomor: nomorBaru });
+        renderTabel();
+
+        document.getElementById('nomorAntrian').textContent = nomorBaru;
+        document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+        document.getElementById('ticket').classList.add('show');
+
+        // ===== RESET FORM =====
+        clearForm();
+        
+        simpanKeLocalStorage();
+        showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+    }
 
         // ============================================================
         // CLEAR FORM
