@@ -621,178 +621,185 @@
         // ============================================================
         // AUTOCOMPLETE - DIPERBAIKI
         // ============================================================
-       function filterAutocomplete(field, query) {
-            const listMap = {
-                nip: 'listNip',
-                nama: 'listNama',
-                bagian: 'listBagian'
-            };
-            const list = document.getElementById(listMap[field]);
-            const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
-            const input = document.getElementById(inputId);
+        function filterAutocomplete(field, query) {
+        const listMap = {
+            nip: 'listNip',
+            nama: 'listNama',
+            bagian: 'listBagian'
+        };
+        const list = document.getElementById(listMap[field]);
+        const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
+        const input = document.getElementById(inputId);
 
-            // Jika query kosong, tutup dropdown
-            if (!query || query.trim().length < 1) {
-                list.classList.remove('show');
-                if (input) input.classList.remove('highlight');
-                return;
-            }
+        // Jika query kosong, tutup dropdown
+        if (!query || query.trim().length < 1) {
+            list.classList.remove('show');
+            if (input) input.classList.remove('highlight');
+            return;
+        }
 
-            const q = query.toLowerCase().trim();
-            let data = [];
+        const q = query.toLowerCase().trim();
+        let data = [];
+
+        // Filter berdasarkan field
+        if (field === 'nip') {
+            data = masterPeserta.filter(p => p.nip && p.nip.includes(q));
+        } else if (field === 'nama') {
+            data = masterPeserta.filter(p => p.nama && p.nama.toLowerCase().includes(q));
+        } else if (field === 'bagian') {
+            // Hanya tampilkan bagian UNIQUE (tidak duplikat)
+            const uniqueBagian = [...new Set(
+                masterPeserta
+                    .map(p => p.bagian)
+                    .filter(b => b && b.toLowerCase().includes(q))
+            )];
+            data = uniqueBagian.map(b => ({ bagian: b }));
+        }
+
+        // Jika tidak ada data, TUTUP DROPDOWN (jangan tampilkan "Tidak ditemukan")
+        if (data.length === 0) {
+            list.classList.remove('show');
+            if (input) input.classList.remove('highlight');
+            return;
+        }
+
+        // Batasi maksimal 10 item
+        data = data.slice(0, 10);
+        filteredData[field] = data;
+        selectedIndex[field] = -1;
+
+        let html = '';
+        data.forEach((p, idx) => {
+            let display = '';
+            let sub = '';
+            let badge = '';
 
             if (field === 'nip') {
-                data = masterPeserta.filter(p => p.nip && p.nip.includes(q));
-            } else if (field === 'nama') {
-                data = masterPeserta.filter(p => p.nama && p.nama.toLowerCase().includes(q));
-            } else if (field === 'bagian') {
-                const uniqueBagian = [...new Set(masterPeserta.map(p => p.bagian).filter(b => b && b.toLowerCase().includes(q)))];
-                data = uniqueBagian.map(b => ({ bagian: b }));
-            }
-
-            // ===== PERBAIKAN DI SINI =====
-            // Jika tidak ada data, TUTUP DROPDOWN (jangan tampilkan "Tidak ditemukan")
-            if (data.length === 0) {
-                list.classList.remove('show');
-                if (input) input.classList.remove('highlight');
-                return;
-            }
-
-            data = data.slice(0, 10);
-            filteredData[field] = data;
-            selectedIndex[field] = -1;
-
-            let html = '';
-            data.forEach((p, idx) => {
-                let display = '';
-                let sub = '';
-                let badge = '';
-
-                if (field === 'nip') {
-                    display = p.nip;
-                    sub = p.nama || '-';
-                    badge = p.bagian || 'Karyawan';
-                    const qLower = q.toLowerCase();
-                    if (p.nip.toLowerCase().includes(qLower)) {
-                        const start = p.nip.toLowerCase().indexOf(qLower);
-                        const end = start + q.length;
-                        display = p.nip.substring(0, start) + 
-                            `<span class="highlight">${p.nip.substring(start, end)}</span>` + 
-                            p.nip.substring(end);
-                    }
-                } else if (field === 'nama') {
-                    display = p.nama;
-                    sub = p.nip || '-';
-                    badge = p.bagian || 'Karyawan';
-                    const qLower = q.toLowerCase();
-                    if (p.nama.toLowerCase().includes(qLower)) {
-                        const start = p.nama.toLowerCase().indexOf(qLower);
-                        const end = start + q.length;
-                        display = p.nama.substring(0, start) + 
-                            `<span class="highlight">${p.nama.substring(start, end)}</span>` + 
-                            p.nama.substring(end);
-                    }
-                } else if (field === 'bagian') {
-                    display = p.bagian;
-                    sub = 'Bagian';
-                    badge = '';
-                    const qLower = q.toLowerCase();
-                    if (p.bagian.toLowerCase().includes(qLower)) {
-                        const start = p.bagian.toLowerCase().indexOf(qLower);
-                        const end = start + q.length;
-                        display = p.bagian.substring(0, start) + 
-                            `<span class="highlight">${p.bagian.substring(start, end)}</span>` + 
-                            p.bagian.substring(end);
-                    }
+                display = p.nip;
+                sub = p.nama || '-';
+                badge = p.bagian || 'Karyawan';
+                // Highlight teks yang dicari
+                const qLower = q.toLowerCase();
+                if (p.nip.toLowerCase().includes(qLower)) {
+                    const start = p.nip.toLowerCase().indexOf(qLower);
+                    const end = start + q.length;
+                    display = p.nip.substring(0, start) + 
+                        `<span class="highlight">${p.nip.substring(start, end)}</span>` + 
+                        p.nip.substring(end);
                 }
+            } else if (field === 'nama') {
+                display = p.nama;
+                sub = p.nip || '-';
+                badge = p.bagian || 'Karyawan';
+                const qLower = q.toLowerCase();
+                if (p.nama.toLowerCase().includes(qLower)) {
+                    const start = p.nama.toLowerCase().indexOf(qLower);
+                    const end = start + q.length;
+                    display = p.nama.substring(0, start) + 
+                        `<span class="highlight">${p.nama.substring(start, end)}</span>` + 
+                        p.nama.substring(end);
+                }
+            } else if (field === 'bagian') {
+                display = p.bagian;
+                sub = 'Klik untuk memilih bagian ini';
+                badge = '';
+                const qLower = q.toLowerCase();
+                if (p.bagian.toLowerCase().includes(qLower)) {
+                    const start = p.bagian.toLowerCase().indexOf(qLower);
+                    const end = start + q.length;
+                    display = p.bagian.substring(0, start) + 
+                        `<span class="highlight">${p.bagian.substring(start, end)}</span>` + 
+                        p.bagian.substring(end);
+                }
+            }
 
-                html += `
-                    <div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
-                        <div>
-                            <div class="main">${display}</div>
-                            ${sub ? `<div class="sub">${sub}</div>` : ''}
-                        </div>
-                        ${badge ? `<span class="badge-info">${badge}</span>` : ''}
+            html += `
+                <div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
+                    <div>
+                        <div class="main">${display}</div>
+                        ${sub ? `<div class="sub">${sub}</div>` : ''}
                     </div>
-                `;
-            });
+                    ${badge ? `<span class="badge-info">${badge}</span>` : ''}
+                </div>
+            `;
+        });
 
-            list.innerHTML = html;
-            list.classList.add('show');
-            if (input) input.classList.add('highlight');
-            }
+        list.innerHTML = html;
+        list.classList.add('show');
+        if (input) input.classList.add('highlight');
+}
         function selectPeserta(field, index) {
-            const data = filteredData[field];
-            if (!data || !data[index]) return;
+        const data = filteredData[field];
+        if (!data || !data[index]) return;
 
-            const p = data[index];
+        const p = data[index];
 
-            if (field === 'nip') {
-                document.getElementById('inputNip').value = p.nip;
-                document.getElementById('inputNama').value = p.nama || '';
-                document.getElementById('inputBagian').value = p.bagian || '';
-            } else if (field === 'nama') {
-                document.getElementById('inputNip').value = p.nip || '';
-                document.getElementById('inputNama').value = p.nama;
-                document.getElementById('inputBagian').value = p.bagian || '';
-            } else if (field === 'bagian') {
-                document.getElementById('inputBagian').value = p.bagian;
-                const full = masterPeserta.find(m => m.bagian === p.bagian);
-                if (full) {
-                    document.getElementById('inputNip').value = full.nip || '';
-                    document.getElementById('inputNama').value = full.nama || '';
-                }
-            }
-
-            closeAllLists();
-            document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
+        if (field === 'nip') {
+            document.getElementById('inputNip').value = p.nip;
+            document.getElementById('inputNama').value = p.nama || '';
+            document.getElementById('inputBagian').value = p.bagian || '';
             ambilAntrian();
+        } else if (field === 'nama') {
+            document.getElementById('inputNip').value = p.nip || '';
+            document.getElementById('inputNama').value = p.nama;
+            document.getElementById('inputBagian').value = p.bagian || '';
+            ambilAntrian();
+        } else if (field === 'bagian') {
+            // HANYA ISI BAGIAN, tidak mengisi NIP & Nama
+            document.getElementById('inputBagian').value = p.bagian;
+            // Fokus ke NIP agar user bisa lanjut
+            document.getElementById('inputNip').focus();
+            showToast('✅ Bagian diisi, silakan isi NIP & Nama', 'info');
         }
 
         function handleKeydown(field, e) {
-            const listMap = {
-                nip: 'listNip',
-                nama: 'listNama',
-                bagian: 'listBagian'
-            };
-            const list = document.getElementById(listMap[field]);
-            const items = list.querySelectorAll('.autocomplete-item');
+        const listMap = {
+            nip: 'listNip',
+            nama: 'listNama',
+            bagian: 'listBagian'
+        };
+        const list = document.getElementById(listMap[field]);
+        const items = list.querySelectorAll('.autocomplete-item');
 
-            // Jika dropdown tidak tampil, Enter langsung ambil antrian
-            if (!list.classList.contains('show')) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    ambilAntrian();
-                }
-                return;
+        // Jika dropdown tidak tampil, Enter langsung ambil antrian
+        if (!list.classList.contains('show')) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                ambilAntrian();
             }
-
-            if (e.key === 'ArrowDown') {
-                e.preventDefault();
-                if (items.length > 0) {
-                    selectedIndex[field] = (selectedIndex[field] + 1) % items.length;
-                    highlightItem(items, selectedIndex[field]);
-                }
-            } else if (e.key === 'ArrowUp') {
-                e.preventDefault();
-                if (items.length > 0) {
-                    selectedIndex[field] = (selectedIndex[field] - 1 + items.length) % items.length;
-                    highlightItem(items, selectedIndex[field]);
-                }
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                if (selectedIndex[field] >= 0 && selectedIndex[field] < items.length) {
-                    items[selectedIndex[field]].click();
-                } else if (filteredData[field] && filteredData[field].length === 1) {
-                    selectPeserta(field, 0);
-                } else {
-                    ambilAntrian();
-                }
-            } else if (e.key === 'Escape') {
-                list.classList.remove('show');
-                document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
-            }
+            return;
         }
+
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (items.length > 0) {
+            selectedIndex[field] = (selectedIndex[field] + 1) % items.length;
+            highlightItem(items, selectedIndex[field]);
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (items.length > 0) {
+            selectedIndex[field] = (selectedIndex[field] - 1 + items.length) % items.length;
+            highlightItem(items, selectedIndex[field]);
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex[field] >= 0 && selectedIndex[field] < items.length) {
+            items[selectedIndex[field]].click();
+        } else if (filteredData[field] && filteredData[field].length === 1) {
+            selectPeserta(field, 0);
+        } else {
+            ambilAntrian();
+        }
+    } else if (e.key === 'Escape') {
+        list.classList.remove('show');
+        document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
+    }
+}
+
+        closeAllLists();
+        document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
+}
 
         function highlightItem(items, index) {
             items.forEach((item, idx) => {
@@ -875,22 +882,6 @@
             document.getElementById('inputBagian').value = '';
             document.getElementById('inputNip').focus();
             closeAllLists();
-        }
-
-        // ============================================================
-        // RANDOM
-        // ============================================================
-        function isiRandom() {
-            const valid = masterPeserta.filter(p => p.nama && p.nama.trim() !== '');
-            if (valid.length === 0) {
-                showToast('⚠️ Tidak ada data peserta', 'error');
-                return;
-            }
-            const random = valid[Math.floor(Math.random() * valid.length)];
-            document.getElementById('inputNip').value = random.nip || '';
-            document.getElementById('inputNama').value = random.nama || '';
-            document.getElementById('inputBagian').value = random.bagian || '';
-            ambilAntrian();
         }
 
         // ============================================================
