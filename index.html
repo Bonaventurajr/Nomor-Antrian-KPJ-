@@ -215,6 +215,14 @@
             font-size: 13px;
         }
 
+        .autocomplete-list:empty {
+        display: none !important;
+        }
+
+    .autocomplete-list:not(:empty) {
+        display: block;
+    }
+
         .form-actions {
             display: flex;
             gap: 10px;
@@ -431,6 +439,26 @@
             .logo-atas .line { max-width: 30px; }
             .autocomplete-list { max-height: 120px; }
         }
+        @media (max-width: 768px) {
+        .autocomplete-list {
+            max-height: 120px !important;
+            /* Muncul di ATAS input biar gak nutupin */
+            top: auto !important;
+            bottom: calc(100% + 2px) !important;
+            border-radius: 10px 10px 0 0 !important;
+            border: 2px solid #2a5298;
+            border-bottom: none !important;
+        }
+        .autocomplete-list {
+        transition: all 0.2s ease;
+        opacity: 0;
+        transform: translateY(-5px);
+        }
+    .autocomplete-list.show {
+        opacity: 1;
+        transform: translateY(0);
+        }
+    }
     </style>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
@@ -622,10 +650,10 @@
                 data = uniqueBagian.map(b => ({ bagian: b }));
             }
 
-            if (data.length === 0) {
-                list.innerHTML = `<div class="autocomplete-empty">Tidak ditemukan</div>`;
-                list.classList.add('show');
-                return;
+             if (data.length === 0) {
+            list.classList.remove('show');
+            if (input) input.classList.remove('highlight');
+            return;
             }
 
             data = data.slice(0, 10);
