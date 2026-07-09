@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>Nomor Antrian KPJ</title>
+    <title>Pengambilan Nomor Antrian</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -35,7 +35,6 @@
             margin-bottom: 20px;
         }
 
-        /* LOGO DI ATAS */
         .logo-atas {
             display: flex;
             justify-content: center;
@@ -53,15 +52,13 @@
             font-weight: 900;
             color: #1a2a4a;
             letter-spacing: 4px;
-            font-family: 'Arial Black', sans-serif;
+            font-family: 'Times New Roman', sans-serif;
         }
         .logo-atas img {
             height: 80px;
             width: auto;
             object-fit: contain;
         }
-
-        /* Garis di samping logo */
         .logo-atas .line {
             flex: 1;
             height: 2px;
@@ -229,7 +226,41 @@
             min-width: 100px;
             justify-content: center;
         }
+        @media (max-width: 480px) {
+            .btn-delete {
+                font-size: 12px !important;
+                padding: 2px 6px !important;
+            }
 
+            table td:last-child {
+                padding: 4px 6px !important;
+            }
+        }
+        /* Tombol delete di tabel */
+        .btn-delete {
+            background: none;
+            border: none;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+        .btn-delete:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+        .btn-delete:active {
+            transform: scale(0.9);
+        }
+
+        /* Kolom aksi di tabel */
+        td .btn-delete {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
         .btn {
             padding: 12px 20px;
             border: none;
@@ -251,6 +282,7 @@
             box-shadow: 0 4px 14px rgba(5, 150, 105, 0.25);
         }
         .btn-success:hover { transform: translateY(-2px); }
+        .btn-warning:hover { transform: translateY(-2px); }
 
         .btn-primary {
             background: linear-gradient(135deg, #1e3c72, #2a5298);
@@ -397,8 +429,10 @@
             .form-actions .btn { min-width: 100%; }
             .bottom-actions .btn { min-width: 100%; }
             .logo-atas .line { max-width: 30px; }
+            .autocomplete-list { max-height: 120px; }
         }
     </style>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -411,22 +445,17 @@
     <!-- APP -->
     <div class="app-wrapper">
 
-        <!-- ===== HEADER DENGAN LOGO DI ATAS ===== -->
+        <!-- HEADER -->
         <div class="header">
-            <!-- LOGO DI ATAS -->
             <div class="logo-atas">
                 <span class="line"></span>
                 <div class="logo-wrapper">
-                    <!-- Ganti dengan logo Anda -->
-                    <img src="abcc.png" alt="Logo" />
-                    <!-- Atau pakai teks jika gambar tidak ada -->
-                    <!-- <span class="logo-teks">ABC</span> -->
+                    <img src="abcc.png" alt="Logo KPJ" class="logo-img"/>
                 </div>
                 <span class="line"></span>
             </div>
-            <!-- TULISAN NOMOR ANTRIAN -->
-            <h1>Nomor Antrian <span>KPJ</span></h1>
-            <p>Kartu Pekerja Jakarta PT International Chemical Industry</p>
+            <h1>Pengambilan <span>Nomor Antrian</span></h1>
+            <p>(Kartu Pekerja Jakarta PT International Chemical Industry)</p>
         </div>
 
         <!-- INFO -->
@@ -435,10 +464,9 @@
             <span>Ketik di kolom NIP, Nama, atau Bagian untuk mencari</span>
         </div>
 
-        <!-- FORM 3 KOLOM -->
+        <!-- FORM -->
         <div class="form-card">
 
-            <!-- ROW: NIP + Nama -->
             <div class="form-row-2">
                 <div class="form-group">
                     <label><i class="fas fa-id-card"></i> NIP</label>
@@ -450,7 +478,6 @@
                             placeholder="Ketik NIP..." 
                             autocomplete="off"
                             oninput="filterAutocomplete('nip', this.value)"
-                            onfocus="filterAutocomplete('nip', this.value)"
                             onkeydown="handleKeydown('nip', event)"
                         />
                         <div class="autocomplete-list" id="listNip"></div>
@@ -466,7 +493,6 @@
                             placeholder="Ketik Nama..." 
                             autocomplete="off"
                             oninput="filterAutocomplete('nama', this.value)"
-                            onfocus="filterAutocomplete('nama', this.value)"
                             onkeydown="handleKeydown('nama', event)"
                         />
                         <div class="autocomplete-list" id="listNama"></div>
@@ -474,7 +500,6 @@
                 </div>
             </div>
 
-            <!-- Bagian -->
             <div class="form-group">
                 <label><i class="fas fa-building"></i> Bagian</label>
                 <div class="autocomplete-container">
@@ -485,7 +510,6 @@
                         placeholder="Ketik Bagian..." 
                         autocomplete="off"
                         oninput="filterAutocomplete('bagian', this.value)"
-                        onfocus="filterAutocomplete('bagian', this.value)"
                         onkeydown="handleKeydown('bagian', event)"
                     />
                     <div class="autocomplete-list" id="listBagian"></div>
@@ -493,7 +517,7 @@
             </div>
 
             <div class="form-actions">
-                <button class="btn btn-success" onclick="ambilAntrian()">
+                <bu class="btn btn-success" onclick="ambilAntrian()">
                     <i class="fas fa-ticket-alt"></i> Ambil Nomor
                 </button>
             </div>
@@ -526,9 +550,9 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>#</th><th>NIP</th><th>Nama</th><th>Bagian</th><th>Nomor</th></tr></thead>
+                    <thead><tr><th>#</th><th>NIP</th><th>Nama</th><th>Bagian</th><th>Nomor</th><th>Aksi</th></tr></thead>
                     <tbody id="tbodyAntrian">
-                        <tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
+                        <tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -537,7 +561,6 @@
         <!-- BOTTOM -->
         <div class="bottom-actions">
             <button class="btn btn-primary" onclick="saveExcel()"><i class="fas fa-file-excel"></i> Save Excel</button>
-            <button class="btn btn-outline" onclick="exportJson()"><i class="fas fa-code"></i> JSON</button>
             <button class="btn btn-danger" onclick="resetAll()"><i class="fas fa-trash-alt"></i> Reset</button>
         </div>
 
@@ -547,11 +570,7 @@
     </div>
 
     <script>
-        // ============================================================
-        // MASTER DATA PESERTA
-        // ============================================================
         let masterPeserta = [];
-
         let antrian = [];
         let nomorTerakhir = 0;
 
@@ -572,7 +591,7 @@
         }
 
         // ============================================================
-        // AUTOCOMPLETE
+        // AUTOCOMPLETE - DIPERBAIKI
         // ============================================================
         function filterAutocomplete(field, query) {
             const listMap = {
@@ -584,8 +603,10 @@
             const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
             const input = document.getElementById(inputId);
 
-            if (!query || query.length < 1) {
+            // ===== PERBAIKAN: Jika query kosong, TUTUP DROPDOWN =====
+            if (!query || query.trim().length < 1) {
                 list.classList.remove('show');
+                if (input) input.classList.remove('highlight');
                 return;
             }
 
@@ -708,6 +729,15 @@
             const list = document.getElementById(listMap[field]);
             const items = list.querySelectorAll('.autocomplete-item');
 
+            // Jika dropdown tidak tampil, Enter langsung ambil antrian
+            if (!list.classList.contains('show')) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    ambilAntrian();
+                }
+                return;
+            }
+
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
                 if (items.length > 0) {
@@ -806,11 +836,27 @@
         }
 
         // ============================================================
-        // TAMBAH PESERTA - SUDAH DIPERBAIKI
+        // RANDOM
+        // ============================================================
+        function isiRandom() {
+            const valid = masterPeserta.filter(p => p.nama && p.nama.trim() !== '');
+            if (valid.length === 0) {
+                showToast('⚠️ Tidak ada data peserta', 'error');
+                return;
+            }
+            const random = valid[Math.floor(Math.random() * valid.length)];
+            document.getElementById('inputNip').value = random.nip || '';
+            document.getElementById('inputNama').value = random.nama || '';
+            document.getElementById('inputBagian').value = random.bagian || '';
+            ambilAntrian();
+        }
+
+        // ============================================================
+        // TAMBAH PESERTA
         // ============================================================
         function tambahPeserta() {
             const nip = prompt('Masukkan NIP:', '');
-            if (nip === null) return; // jika cancel
+            if (nip === null) return;
             if (!nip.trim()) {
                 showToast('⚠️ NIP harus diisi!', 'error');
                 return;
@@ -844,76 +890,111 @@
         // RENDER TABEL
         // ============================================================
         function renderTabel() {
-            const tbody = document.getElementById('tbodyAntrian');
-            const count = document.getElementById('countAntrian');
-            count.textContent = antrian.length + ' antrian';
+        const tbody = document.getElementById('tbodyAntrian');
+        const count = document.getElementById('countAntrian');
+        count.textContent = antrian.length + ' antrian';
 
-            if (antrian.length === 0) {
-                tbody.innerHTML = `
-                    <tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
-                `;
-                return;
-            }
-
-            let html = '';
-            antrian.forEach((a, idx) => {
-                html += `
-                    <tr>
-                        <td>${idx + 1}</td>
-                        <td>${a.nip}</td>
-                        <td>${a.nama}</td>
-                        <td>${a.bagian}</td>
-                        <td class="nomor-cell">${a.nomor}</td>
-                    </tr>
-                `;
-            });
-            tbody.innerHTML = html;
+        if (antrian.length === 0) {
+            tbody.innerHTML = `
+                <tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
+            `;
+            return;
         }
+
+        let html = '';
+        antrian.forEach((a, idx) => {
+            html += `
+                <tr>
+                    <td>${idx + 1}</td>
+                    <td>${a.nip}</td>
+                    <td>${a.nama}</td>
+                    <td>${a.bagian}</td>
+                    <td class="nomor-cell">${a.nomor}</td>
+                    <td>
+                        <button class="btn-delete" onclick="hapusAntrian('${a.nip}')" title="Hapus antrian ini">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        tbody.innerHTML = html;
+    }
+        // ============================================================
+// HAPUS SATU ANTRIAN
+// ============================================================
+function hapusAntrian(nip) {
+    // Cari data peserta
+    const peserta = antrian.find(a => a.nip === nip);
+    if (!peserta) return;
+
+    // Konfirmasi sebelum hapus
+    if (!confirm(`Hapus antrian untuk "${peserta.nama}" (NIP: ${nip})?`)) return;
+
+    // Hapus dari array
+    antrian = antrian.filter(a => a.nip !== nip);
+
+    // Update nomor urut (tidak mengubah nomor antrian yang sudah keluar)
+    renderTabel();
+
+    // Jika antrian kosong, sembunyikan tiket
+    if (antrian.length === 0) {
+        document.getElementById('ticket').classList.remove('show');
+    }
+
+    // Simpan ke localStorage
+    simpanKeLocalStorage();
+
+    showToast(`🗑️ Antrian "${peserta.nama}" dihapus`, 'info');
+}
 
         // ============================================================
         // SAVE EXCEL
         // ============================================================
+        // 1. Validasi: pastikan ada data
         function saveExcel() {
             if (antrian.length === 0) {
                 showToast('⚠️ Belum ada data untuk disimpan', 'error');
                 return;
             }
+        // 2. Siapkan data dalam format aray untuk sheetJS
+        // Tambahkan baris header (judul kolom)
+        const dataForExcel = [
+            ['#', 'NIP', 'Nama', 'Bagian', 'Nomor Antrian']
+        ]
 
             let csv = 'No,NIP,Nama,Bagian,Nomor Antrian\n';
             antrian.forEach((a, idx) => {
                 csv += `${idx+1},${a.nip},${a.nama},${a.bagian},${a.nomor}\n`;
             });
 
-            const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `Antrian_KPJ_${new Date().toISOString().slice(0,10)}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
+        // Isi dengan data antrian
+            antrian.forEach((a, index) => {
+                dataForExcel.push([index + 1, a.nip, a.nama, a.bagian, a.nomor]);
+            });
 
-            showToast('📥 File CSV berhasil di-download!', 'success');
-        }
+        // 3. Buat workbook dan worksheet
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.aoa_to_sheet(dataForExcel); // aoa = Array of Arrays
+        
+        // 4. (Opsional) Atur lebar kolom agar lebih rapi
+            ws['!cols'] = [
+            { wch: 5 },   // Kolom # (lebar 5 karakter)
+            { wch: 15 },  // Kolom NIP
+            { wch: 30 },  // Kolom Nama
+            { wch: 20 },  // Kolom Bagian
+            { wch: 15 }   // Kolom Nomor Antrian
+            ];
 
-        // ============================================================
-        // EXPORT JSON
-        // ============================================================
-        function exportJson() {
-            if (antrian.length === 0) {
-                showToast('⚠️ Belum ada data', 'error');
-                return;
-            }
-            const json = JSON.stringify(antrian, null, 2);
-            const blob = new Blob([json], { type: 'application/json' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `antrian_kpj_${new Date().toISOString().slice(0,10)}.json`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-            showToast('📥 File JSON berhasil di-download!', 'success');
+        // 5. Tambahkan worksheet ke workbook
+        XLSX.utils.book_append_sheet(wb, ws, "Antrian");
+
+        // 6. Generate file dan mulai download
+        const fileName = `Antrian_KPJ_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+         // 7. Beri notifikasi sukses
+        showToast(`📥 File "${fileName}" berhasil di-download!`, 'success');
         }
 
         // ============================================================
