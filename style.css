@@ -47,7 +47,7 @@ body {
     font-family: 'Times New Roman', sans-serif;
 }
 .logo-atas img {
-    height: 80px;
+    height: 100px;
     width: auto;
     object-fit: contain;
 }
@@ -334,6 +334,48 @@ td .btn-delete {
     padding: 14px 16px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.04);
     margin: 16px 0;
+}
+.ticket .waktu-antrian {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #64748b;
+    border-top: 1px dashed #a7f3d0;
+    padding-top: 8px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+}
+.ticket .waktu-antrian {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #065f46;
+    border-top: 1px dashed #a7f3d0;
+    padding-top: 10px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 10px;
+    padding: 10px 16px;
+}
+.ticket .waktu-antrian i {
+    color: #059669;
+    margin-right: 6px;
+}
+.ticket .waktu-antrian span {
+    font-weight: 600;
+    color: #065f46;
+}
+
+/* Tambahan untuk kolom tanggal di tabel */
+td.tanggal-cell {
+    font-size: 12px;
+    color: #64748b;
+    white-space: nowrap;
+}
+td.tanggal-cell .time {
+    font-weight: 600;
+    color: #1a2a4a;
 }
 .table-header {
     display: flex;

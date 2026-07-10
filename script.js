@@ -21,7 +21,27 @@ function showToast(message, type = 'success') {
 }
 
 // ============================================================
-// AUTOCOMPLETE - FIXED
+// FUNGSI FORMAT TANGGAL & WAKTU (UNTUK TICKET SAJA)
+// ============================================================
+function formatTanggalWaktu() {
+    const now = new Date();
+    const options = {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    };
+    const tanggal = now.toLocaleDateString('id-ID', options);
+    const waktu = now.toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    return { tanggal, waktu, full: `${tanggal} ${waktu}` };
+}
+
+// ============================================================
+// AUTOCOMPLETE
 // ============================================================
 function filterAutocomplete(field, query) {
     const listMap = {
@@ -33,10 +53,10 @@ function filterAutocomplete(field, query) {
     const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
     const input = document.getElementById(inputId);
 
-    // 🔥 FIX: Jika query kosong, sembunyikan list dan hapus highlight
+    // Jika query kosong, sembunyikan list dan hapus highlight
     if (!query || query.trim().length === 0) {
         list.classList.remove('show');
-        list.innerHTML = ''; // Kosongkan list
+        list.innerHTML = '';
         if (input) input.classList.remove('highlight');
         filteredData[field] = [];
         selectedIndex[field] = -1;
@@ -66,7 +86,7 @@ function filterAutocomplete(field, query) {
         }
     }
 
-    // 🔥 FIX: Jika tidak ada data, sembunyikan list
+    // Jika tidak ada data, sembunyikan list
     if (data.length === 0) {
         list.classList.remove('show');
         list.innerHTML = '';
@@ -92,7 +112,6 @@ function filterAutocomplete(field, query) {
             display = p.nip;
             sub = p.nama || '-';
             badge = p.bagian || 'Karyawan';
-            // Highlight matching text
             const qLower = q.toLowerCase();
             if (p.nip.toLowerCase().includes(qLower)) {
                 const start = p.nip.toLowerCase().indexOf(qLower);
@@ -104,7 +123,7 @@ function filterAutocomplete(field, query) {
         } else if (field === 'nama') {
             display = p.nama;
             sub = p.nip || '-';
-            badge = p.bagian || '';
+            badge = p.bagian || 'Karyawan';
             const qLower = q.toLowerCase();
             if (p.nama.toLowerCase().includes(qLower)) {
                 const start = p.nama.toLowerCase().indexOf(qLower);
@@ -115,7 +134,7 @@ function filterAutocomplete(field, query) {
             }
         } else if (field === 'bagian') {
             display = p.bagian;
-            sub = p.isNew ? '' : 'Klik untuk memilih bagian';
+            sub = p.isNew ? 'Bagian baru akan dibuat' : 'Klik untuk memilih bagian';
             badge = p.isNew ? 'Baru' : '';
             isNewClass = p.isNew ? 'is-new' : '';
             const qLower = q.toLowerCase();
@@ -231,26 +250,24 @@ function highlightItem(items, index) {
 function closeAllLists() {
     document.querySelectorAll('.autocomplete-list').forEach(el => {
         el.classList.remove('show');
-        el.innerHTML = ''; // 🔥 FIX: Kosongkan list
+        el.innerHTML = '';
     });
     document.querySelectorAll('.autocomplete-input').forEach(el => el.classList.remove('highlight'));
-    // Reset filtered data
     filteredData = { nip: [], nama: [], bagian: [] };
     selectedIndex = { nip: -1, nama: -1, bagian: -1 };
 }
 
-// 🔥 FIX: Tambahkan event listener untuk klik di luar
+// Event listener untuk klik di luar
 document.addEventListener('click', function(e) {
     if (!e.target.closest('.autocomplete-container')) {
         closeAllLists();
     }
 });
 
-// 🔥 FIX: Tambahkan event listener untuk blur (ketika input kehilangan fokus)
+// Event listener untuk blur (ketika input kehilangan fokus)
 document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('.autocomplete-input').forEach(input => {
         input.addEventListener('blur', function(e) {
-            // Delay agar klik pada item autocomplete masih bekerja
             setTimeout(() => {
                 const container = this.closest('.autocomplete-container');
                 const list = container.querySelector('.autocomplete-list');
@@ -265,7 +282,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ============================================================
-// AMBIL ANTRIAN
+// AMBIL ANTRIAN - TANGGAL & WAKTU HANYA UNTUK TICKET
 // ============================================================
 function ambilAntrian() {
     const nip = document.getElementById('inputNip').value.trim();
@@ -296,11 +313,22 @@ function ambilAntrian() {
     nomorTerakhir++;
     const nomorBaru = String(nomorTerakhir).padStart(3, '0');
 
-    antrian.push({ nip, nama, bagian, nomor: nomorBaru });
+    // Simpan data antrian tanpa tanggal
+    antrian.push({ 
+        nip, 
+        nama, 
+        bagian, 
+        nomor: nomorBaru
+    });
+    
     renderTabel();
 
+    // Tampilkan tanggal & waktu di ticket
+    const { tanggal, waktu } = formatTanggalWaktu();
     document.getElementById('nomorAntrian').textContent = nomorBaru;
     document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+    document.getElementById('tanggalAmbil').textContent = tanggal;
+    document.getElementById('waktuAmbil').textContent = waktu;
     document.getElementById('ticket').classList.add('show');
 
     clearForm();
@@ -309,7 +337,7 @@ function ambilAntrian() {
 }
 
 // ============================================================
-// CLEAR FORM - FIXED
+// CLEAR FORM
 // ============================================================
 function clearForm() {
     document.getElementById('inputNip').value = '';
@@ -355,7 +383,7 @@ function tambahPeserta() {
 }
 
 // ============================================================
-// RENDER TABEL
+// RENDER TABEL - TANPA KOLOM TANGGAL
 // ============================================================
 function renderTabel() {
     const tbody = document.getElementById('tbodyAntrian');
@@ -417,7 +445,7 @@ function hapusAntrian(nip) {
 }
 
 // ============================================================
-// SAVE EXCEL
+// SAVE EXCEL - TANPA KOLOM TANGGAL
 // ============================================================
 function saveExcel() {
     if (antrian.length === 0) {
@@ -426,11 +454,17 @@ function saveExcel() {
     }
 
     const dataForExcel = [
-        ['No', 'NIP', 'Nama', 'Bagian', 'Antrian']
+        ['#', 'NIP', 'Nama', 'Bagian', 'Nomor Antrian']
     ];
 
     antrian.forEach((a, index) => {
-        dataForExcel.push([index + 1, a.nip, a.nama, a.bagian, a.nomor]);
+        dataForExcel.push([
+            index + 1, 
+            a.nip, 
+            a.nama, 
+            a.bagian, 
+            a.nomor
+        ]);
     });
 
     const wb = XLSX.utils.book_new();
@@ -487,9 +521,16 @@ function loadDariLocalStorage() {
                 const last = antrian[antrian.length - 1];
                 document.getElementById('nomorAntrian').textContent = last.nomor;
                 document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
+                
+                // Tampilkan tanggal & waktu di ticket (menggunakan waktu sekarang saat load)
+                const { tanggal, waktu } = formatTanggalWaktu();
+                document.getElementById('tanggalAmbil').textContent = tanggal;
+                document.getElementById('waktuAmbil').textContent = waktu;
                 document.getElementById('ticket').classList.add('show');
             }
-        } catch (e) {}
+        } catch (e) {
+            console.error('Error loading data:', e);
+        }
     }
 }
 
@@ -515,6 +556,7 @@ function loadSuggestionDariLocalStorage() {
 window.onload = function() {
     loadSuggestionDariLocalStorage();
     loadDariLocalStorage();
+    
     if (antrian.length === 0) {
         document.getElementById('inputNip').focus();
     }
