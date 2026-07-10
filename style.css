@@ -460,7 +460,7 @@ tr:hover td { background: #f8faff; }
 @media (max-width: 480px) {
     .app-wrapper { padding: 16px 14px; }
     .header h1 { font-size: 18px; }
-    .logo-atas img { height: 40px; }
+    .logo-atas img { height: 100px; }
     .form-row-2 { flex-direction: column; gap: 0; }
     .form-actions .btn { min-width: 100%; }
     .bottom-actions .btn { min-width: 100%; }
