@@ -729,10 +729,12 @@ function ambilAntrian() {
 
     clearForm();
     simpanKeLocalStorage();
+    
+    // 🔥 TAMBAHKAN INI - SYNC KE FIREBASE!
     syncToFirebase();
+    
     showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
 }
-
 // ============================================================
 // CLEAR FORM
 // ============================================================

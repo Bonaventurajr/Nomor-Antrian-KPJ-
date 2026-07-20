@@ -193,6 +193,9 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+
+    <!-- Firebase Config -->
+    <script src="firebase-config.js"></script>
     
     <script>
         const firebaseConfig = {
@@ -207,5 +210,20 @@
     </script>
     
     <script src="script.js"></script>
+
+    <script>
+window.onload = function() {
+    // Load data dari localStorage dulu
+    loadSuggestionDariLocalStorage();
+    loadDariLocalStorage();
+    updateDatabaseStatus();
+    
+    // 🔥 Load dari Firebase
+    if (firebaseEnabled && database) {
+        loadFromFirebase();
+    }
+};
+</script>
+
 </body>
 </html>
