@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+    <title>Login Admin - Antrian KPJ</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #1a2a4a 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .login-container {
+            max-width: 400px;
+            width: 100%;
+            background: white;
+            border-radius: 24px;
+            padding: 40px 32px;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+            animation: fadeIn 0.6s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .login-header .logo {
+            font-size: 48px;
+            color: #2a5298;
+            margin-bottom: 8px;
+        }
+
+        .login-header h1 {
+            font-size: 24px;
+            color: #1a2a4a;
+            font-weight: 700;
+        }
+
+        .login-header h1 span {
+            color: #2a5298;
+        }
+
+        .login-header p {
+            color: #94a3b8;
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            font-size: 13px;
+            color: #1a2a4a;
+            margin-bottom: 6px;
+        }
+
+        .form-group label i {
+            margin-right: 8px;
+            color: #2a5298;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8edf5;
+            border-radius: 12px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            outline: none;
+            background: #f8faff;
+        }
+
+        .form-group input:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.1);
+            background: white;
+        }
+
+        .form-group input.error {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(42, 82, 152, 0.3);
+        }
+
+        .btn-login:active {
+            transform: scale(0.97);
+        }
+
+        .btn-login i {
+            font-size: 18px;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid #fecaca;
+        }
+
+        .error-message.show {
+            display: flex;
+        }
+
+        .login-footer {
+            text-align: center;
+            margin-top: 20px;
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        .login-footer a {
+            color: #2a5298;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .login-footer a:hover {
+            text-decoration: underline;
+        }
+
+        .user-link {
+            text-align: center;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e8edf5;
+        }
+
+        .user-link a {
+            color: #64748b;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .user-link a:hover {
+            color: #2a5298;
+        }
+
+        .user-link a i {
+            margin-right: 6px;
+        }
+
+        /* ===== TOAST ===== */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #1a2a4a;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            z-index: 999;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 90%;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        .toast.error {
+            background: #dc2626;
+        }
+
+        .toast.success {
+            background: #059669;
+        }
+
+        @media (max-width: 480px) {
+            .login-container {
+                padding: 28px 20px;
+            }
+
+            .login-header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- TOAST -->
+    <div id="toast" class="toast">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="toastMessage">Error!</span>
+    </div>
+
+    <!-- LOGIN FORM -->
+    <div class="login-container">
+        <div class="login-header">
+            <div class="logo">
+                <i class="fas fa-user-shield"></i>
+            </div>
+            <h1>Admin <span>KPJ</span></h1>
+            <p>Masukkan password untuk mengakses halaman admin</p>
+        </div>
+
+        <div class="error-message" id="errorMessage">
+            <i class="fas fa-exclamation-circle"></i>
+            <span id="errorText">Password salah!</span>
+        </div>
+
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+            <div class="form-group">
+                <label><i class="fas fa-lock"></i> Password Admin</label>
+                <input 
+                    type="password" 
+                    id="passwordInput" 
+                    placeholder="Masukkan password admin..." 
+                    autofocus
+                />
+            </div>
+
+            <button type="submit" class="btn-login">
+                <i class="fas fa-sign-in-alt"></i> Masuk
+            </button>
+        </form>
+
+        <div class="user-link">
+            <a href="user.html">
+                <i class="fas fa-user"></i> Kembali ke Halaman User
+            </a>
+        </div>
+
+        <div class="login-footer">
+            <i class="fas fa-shield-alt"></i> Halaman ini hanya untuk admin
+        </div>
+    </div>
+
+    <script>
+        // ============================================================
+        // PASSWORD ADMIN - GANTI SESUAI KEINGINAN ANDA
+        // ============================================================
+        const ADMIN_PASSWORD = 'admin123'; // Ganti dengan password yang Anda inginkan
+
+        // ============================================================
+        // TOAST
+        // ============================================================
+        function showToast(message, type = 'error') {
+            const toast = document.getElementById('toast');
+            const msg = document.getElementById('toastMessage');
+            toast.className = 'toast ' + type;
+            msg.textContent = message;
+            toast.classList.add('show');
+            clearTimeout(toast._timer);
+            toast._timer = setTimeout(() => toast.classList.remove('show'), 3000);
+        }
+
+        // ============================================================
+        // HANDLE LOGIN
+        // ============================================================
+        function handleLogin(e) {
+            e.preventDefault();
+
+            const password = document.getElementById('passwordInput').value.trim();
+            const errorMessage = document.getElementById('errorMessage');
+            const errorText = document.getElementById('errorText');
+            const passwordInput = document.getElementById('passwordInput');
+
+            // Reset error
+            errorMessage.classList.remove('show');
+            passwordInput.classList.remove('error');
+
+            if (!password) {
+                errorText.textContent = '⚠️ Password tidak boleh kosong!';
+                errorMessage.classList.add('show');
+                passwordInput.classList.add('error');
+                return false;
+            }
+
+            if (password === ADMIN_PASSWORD) {
+                // Login berhasil - simpan session dan redirect ke admin.html
+                sessionStorage.setItem('adminLoggedIn', 'true');
+                sessionStorage.setItem('adminLoginTime', new Date().toISOString());
+                
+                showToast('✅ Login berhasil! Mengarahkan ke halaman admin...', 'success');
+                
+                setTimeout(() => {
+                    window.location.href = 'admin.html';
+                }, 600);
+            } else {
+                // Login gagal
+                errorText.textContent = '❌ Password salah! Silakan coba lagi.';
+                errorMessage.classList.add('show');
+                passwordInput.classList.add('error');
+                passwordInput.value = '';
+                passwordInput.focus();
+                showToast('❌ Password salah!', 'error');
+                return false;
+            }
+
+            return false;
+        }
+
+        // ============================================================
+        // ENTER KEY
+        // ============================================================
+        document.getElementById('passwordInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                handleLogin(e);
+            }
+        });
+
+        // ============================================================
+        // CEK SESSION - Jika sudah login, redirect ke admin
+        // ============================================================
+        window.onload = function() {
+            if (sessionStorage.getItem('adminLoggedIn') === 'true') {
+                // Sudah login, langsung ke admin
+                window.location.href = 'admin.html';
+            }
+            document.getElementById('passwordInput').focus();
+        };
+    </script>
+</body>
+</html>
