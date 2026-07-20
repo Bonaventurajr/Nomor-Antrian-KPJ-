@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content="0; url=login.html" />
+    <title>Redirecting...</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background: linear-gradient(135deg, #1a2a4a, #2a5298);
+            color: white;
+            margin: 0;
+        }
+        .loader {
+            text-align: center;
+        }
+        .loader i {
+            font-size: 48px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loader">
+        <i class="fas fa-spinner"></i>
+        <p>Mengarahkan ke halaman login...</p>
+        <p style="font-size:12px; color:#94a3b8;">
+            Jika tidak terredirect, <a href="login.html" style="color:#ffffff;">klik di sini</a>
+        </p>
+    </div>
+    <script>
+        // Redirect ke login.html
+        window.location.href = 'login.html';
+    </script>
+</body>
+</html>

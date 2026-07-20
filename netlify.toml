@@ -1,0 +1,18 @@
+# netlify.toml
+[build]
+  publish = "."
+
+[[redirects]]
+  from = "/"
+  to = "/login.html"
+  status = 302
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 302
+
+[[redirects]]
+  from = "/user"
+  to = "/user.html"
+  status = 302
