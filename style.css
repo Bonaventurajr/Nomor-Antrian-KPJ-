@@ -328,6 +328,11 @@ body {
     border: 2px solid #d0ddee;
 }
 
+.btn-warning {
+    background: linear-gradient(135deg, #facc15, #fbbf24);
+    color: white;
+    box-shadow: 0 4px 14px rgba(250, 204, 21, 0.25);
+}
 .btn-outline:hover {
     border-color: #2a5298;
     background: #f0f7ff;

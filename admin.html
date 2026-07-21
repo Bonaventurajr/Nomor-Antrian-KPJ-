@@ -3,11 +3,70 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>Admin - Pengambilan Nomor Antrian KPJ</title>
+    <title>Admin - Antrian KPJ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <link rel="stylesheet" href="style.css"/>
+    <style>
+        .admin-panel {
+            background: #f8faff;
+            border-radius: 16px;
+            padding: 16px;
+            border: 1px solid #e8edf5;
+            margin-bottom: 14px;
+        }
+        .admin-panel h4 {
+            font-size: 14px;
+            color: #1a2a4a;
+            margin-bottom: 10px;
+        }
+        .admin-panel h4 i { color: #2a5298; margin-right: 6px; }
+        .admin-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .admin-grid .btn { width: 100%; }
+        .admin-badge {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            border: 1px solid #fecaca;
+            display: inline-block;
+        }
+        @media (max-width: 480px) {
+            .admin-grid { grid-template-columns: 1fr; }
+        }
+    </style>
 </head>
 <body>
+
+    <!-- ========================================================== -->
+    <!-- 🔒 SESSION CHECK -->
+    <!-- ========================================================== -->
+    <script>
+        (function() {
+            const isAdmin = sessionStorage.getItem('adminLoggedIn') === 'true';
+            const loginTime = sessionStorage.getItem('adminLoginTime');
+            
+            if (!isAdmin) {
+                window.location.href = 'login.html';
+                return;
+            }
+            
+            if (loginTime) {
+                const timeDiff = Date.now() - new Date(loginTime).getTime();
+                if (timeDiff > 2 * 60 * 60 * 1000) {
+                    sessionStorage.removeItem('adminLoggedIn');
+                    sessionStorage.removeItem('adminLoginTime');
+                    window.location.href = 'login.html?expired=1';
+                    return;
+                }
+            }
+        })();
+    </script>
 
     <!-- TOAST -->
     <div id="toast" class="toast">
@@ -15,10 +74,9 @@
         <span id="toastMessage">Sukses!</span>
     </div>
 
-    <!-- APP -->
     <div class="app-wrapper">
 
-        <!-- HEADER -->
+        <!-- ===== HEADER ===== -->
         <div class="header">
             <div class="logo-atas">
                 <span class="line"></span>
@@ -27,69 +85,48 @@
                 </div>
                 <span class="line"></span>
             </div>
-            <h1>Admin <span>Antrian KPJ</span></h1>
+            <h1>Halaman <span>Admin KPJ</span></h1>
             <p>Kartu Pekerja Jakarta - PT International Chemical Industry</p>
         </div>
 
-        <!-- ADMIN NAV -->
-        <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; justify-content:space-between; align-items:center;">
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <a href="admin.html" class="btn btn-primary btn-sm" style="text-decoration:none;">
-                    <i class="fas fa-user-cog"></i> Admin
-                </a>
-                <a href="user.html" class="btn btn-outline btn-sm" style="text-decoration:none;">
-                    <i class="fas fa-user"></i> User
-                </a>
-            </div>
+        <!-- ===== ADMIN BADGE & NAV ===== -->
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span class="admin-badge"><i class="fas fa-lock"></i> Admin Mode</span>
             <button class="btn btn-outline btn-sm" onclick="logout()" style="color:#dc2626; border-color:#dc2626;">
                 <i class="fas fa-sign-out-alt"></i> Logout
             </button>
         </div>
 
-        <!-- DATABASE STATUS -->
+        <!-- ===== DATABASE STATUS ===== -->
         <div class="db-status">
             <i class="fas fa-database"></i>
             Database: <span class="count" id="dbCount">0</span> peserta
             <span style="margin-left:auto; font-size:10px; color:#94a3b8;" id="dbInfo">✅ Siap digunakan</span>
         </div>
 
-        <!-- INFO -->
+        <!-- ===== INFO ===== -->
         <div class="info-badge">
             <i class="fas fa-search"></i>
-            <span>Ketik NIP, Nama, atau Bagian untuk pencarian cepat</span>
+            <span>Ketik NIP, Nama, atau Bagian untuk mencari</span>
         </div>
 
-        <!-- FORM -->
+        <!-- ===== FORM ===== -->
         <div class="form-card">
 
             <div class="form-row-2">
                 <div class="form-group">
                     <label><i class="fas fa-id-card"></i> NIP</label>
                     <div class="autocomplete-container">
-                        <input 
-                            type="text" 
-                            id="inputNip" 
-                            class="autocomplete-input" 
-                            placeholder="Cari atau ketik NIP..." 
-                            autocomplete="off"
-                            oninput="filterAutocomplete('nip', this.value)"
-                            onkeydown="handleKeydown('nip', event)"
-                        />
+                        <input type="text" id="inputNip" class="autocomplete-input" placeholder="Cari atau ketik NIP..." autocomplete="off"
+                               oninput="filterAutocomplete('nip', this.value)" onkeydown="handleKeydown('nip', event)"/>
                         <div class="autocomplete-list" id="listNip"></div>
                     </div>
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-user"></i> Nama</label>
                     <div class="autocomplete-container">
-                        <input 
-                            type="text" 
-                            id="inputNama" 
-                            class="autocomplete-input" 
-                            placeholder="Cari atau ketik Nama..." 
-                            autocomplete="off"
-                            oninput="filterAutocomplete('nama', this.value)"
-                            onkeydown="handleKeydown('nama', event)"
-                        />
+                        <input type="text" id="inputNama" class="autocomplete-input" placeholder="Cari atau ketik Nama..." autocomplete="off"
+                               oninput="filterAutocomplete('nama', this.value)" onkeydown="handleKeydown('nama', event)"/>
                         <div class="autocomplete-list" id="listNama"></div>
                     </div>
                 </div>
@@ -98,61 +135,72 @@
             <div class="form-group">
                 <label><i class="fas fa-building"></i> Bagian</label>
                 <div class="autocomplete-container">
-                    <input 
-                        type="text" 
-                        id="inputBagian" 
-                        class="autocomplete-input" 
-                        placeholder="Cari atau ketik Bagian..." 
-                        autocomplete="off"
-                        oninput="filterAutocomplete('bagian', this.value)"
-                        onkeydown="handleKeydown('bagian', event)"
-                    />
+                    <input type="text" id="inputBagian" class="autocomplete-input" placeholder="Cari atau ketik Bagian..." autocomplete="off"
+                           oninput="filterAutocomplete('bagian', this.value)" onkeydown="handleKeydown('bagian', event)"/>
                     <div class="autocomplete-list" id="listBagian"></div>
                 </div>
             </div>
 
             <div class="form-actions">
-                <button class="btn btn-success" onclick="ambilAntrian()">
-                    <i class="fas fa-ticket-alt"></i> Ambil Nomor
+                <button class="btn btn-success" onclick="ambilAntrian()" style="font-size:16px; padding:14px;">
+                    <i class="fas fa-ticket-alt"></i> Ambil Nomor Antrian
                 </button>
             </div>
 
-            <!-- ADMIN CONTROLS -->
-            <div style="margin-top:8px; gap:6px; flex-wrap:wrap; display:flex;">
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-outline btn-sm" onclick="clearForm()">
+                    <i class="fas fa-eraser"></i> Clear Form
+                </button>
                 <button class="btn btn-outline btn-sm" onclick="tambahPeserta()">
                     <i class="fas fa-plus"></i> Tambah Peserta
-                </button>
-                <button class="btn btn-outline btn-sm" onclick="clearForm()">
-                    <i class="fas fa-eraser"></i> Clear
                 </button>
                 <button class="btn btn-outline btn-sm" onclick="document.getElementById('fileInput').click()">
                     <i class="fas fa-file-import"></i> Import Excel
                 </button>
                 <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none" onchange="importData(event)"/>
-                <button class="btn btn-outline btn-sm" onclick="resetDatabase()" style="color:#dc2626;">
+            </div>
+        </div>
+
+        <!-- ===== ADMIN PANEL ===== -->
+        <div class="admin-panel">
+            <h4><i class="fas fa-tools"></i> Menu Admin</h4>
+            <div class="admin-grid">
+                <button class="btn btn-primary btn-sm" onclick="adminRefresh()"><i class="fas fa-sync-alt"></i> Refresh Data</button>
+                <button class="btn btn-success btn-sm" onclick="saveExcel()"><i class="fas fa-file-excel"></i> Export Excel</button>
+                <button class="btn btn-outline btn-sm" onclick="lihatDatabase()"><i class="fas fa-eye"></i> Lihat DB</button>
+                <button class="btn btn-outline btn-sm" onclick="resetDatabase()" style="color:#dc2626; border-color:#dc2626;">
                     <i class="fas fa-trash"></i> Reset DB
                 </button>
-                <button class="btn btn-outline btn-sm" onclick="lihatDatabase()">
-                    <i class="fas fa-eye"></i> Lihat DB
+                <button class="btn btn-warning btn-sm" onclick="ubahPasswordAdmin()" style="color:#1a2a4a;">
+                <i class="fas fa-key"></i> Ubah Password
                 </button>
             </div>
         </div>
 
-        <!-- TICKET -->
+        <!-- ===== PANEL JADWAL ===== -->
+        <div class="admin-panel">
+            <h4><i class="fas fa-calendar-alt"></i> Pengaturan Jadwal Operasional</h4>
+            <p style="font-size:12px; color:#94a3b8; margin-bottom:10px;">
+                Atur tanggal, jam, dan hari operasional sistem antrian.
+            </p>
+            <div id="jadwalContainer">
+                <!-- Akan diisi oleh JavaScript -->
+            </div>
+        </div>
+
+        <!-- ===== TICKET ===== -->
         <div class="ticket" id="ticket">
             <span class="check"><i class="fas fa-check-circle"></i></span>
             <h3>Nomor Antrian Anda</h3>
             <div class="nomor" id="nomorAntrian">001</div>
-            <div class="detail" id="detailAntrian">
-                <strong>Nama</strong> · Bagian
-            </div>
+            <div class="detail" id="detailAntrian"><strong>Nama</strong> · Bagian</div>
             <div class="waktu-antrian">
                 <span><i class="far fa-calendar-alt"></i> <span id="tanggalAmbil">-</span></span>
                 <span><i class="far fa-clock"></i> <span id="waktuAmbil">-</span></span>
             </div>
         </div>
 
-        <!-- TABLE -->
+        <!-- ===== TABLE ===== -->
         <div class="table-section">
             <div class="table-header">
                 <h4><i class="fas fa-list-ul"></i> Data Antrian</h4>
@@ -168,14 +216,10 @@
             </div>
         </div>
 
-        <!-- BOTTOM ACTIONS -->
+        <!-- ===== BOTTOM ACTIONS ===== -->
         <div class="bottom-actions">
-            <button class="btn btn-primary" onclick="saveExcel()">
-                <i class="fas fa-file-excel"></i> Save Excel
-            </button>
-            <button class="btn btn-danger" onclick="resetAll()">
-                <i class="fas fa-trash-alt"></i> Reset Antrian
-            </button>
+            <button class="btn btn-primary" onclick="saveExcel()" style="flex:1;"><i class="fas fa-file-excel"></i> Save Excel</button>
+            <button class="btn btn-danger" onclick="resetAll()" style="flex:1;"><i class="fas fa-trash-alt"></i> Reset Antrian</button>
         </div>
 
         <div class="footer-info">
@@ -186,25 +230,19 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- ========================================================== -->
+    <!-- SCRIPTS -->
+    <!-- ========================================================== -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="firebase-config.js"></script>
+    <script src="script-admin.js"></script>
     
+    <!-- ========================================================== -->
+    <!-- LOGOUT FUNCTION -->
+    <!-- ========================================================== -->
     <script>
-        // ============================================================
-        // CEK SESSION LOGIN
-        // ============================================================
-        function checkAdminSession() {
-            if (sessionStorage.getItem('adminLoggedIn') !== 'true') {
-                // Belum login, redirect ke login page
-                window.location.href = 'login.html';
-            }
-        }
-
-        // ============================================================
-        // LOGOUT
-        // ============================================================
         function logout() {
             if (confirm('Yakin ingin logout?')) {
                 sessionStorage.removeItem('adminLoggedIn');
@@ -212,25 +250,6 @@
                 window.location.href = 'login.html';
             }
         }
-
-        // ============================================================
-        // FIREBASE CONFIG
-        // ============================================================
-        const firebaseConfig = {
-        apiKey: "AIzaSyDR7jGd0PfvzAToJKRgxbhjQ6lANtslRX4",
-        authDomain: "antrian-kpj.firebaseapp.com",
-        databaseURL: "https://antrian-kpj-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "antrian-kpj",
-        storageBucket: "antrian-kpj.firebasestorage.app",
-        messagingSenderId: "488048193039",
-        appId: "1:488048193039:web:488728ba50895948aebd7a",
-        measurementId: "G-129YGSCLP8"
-    };
-
-        // Panggil di awal
-        checkAdminSession();
     </script>
-    
-    <script src="script.js"></script>
 </body>
 </html>

@@ -5,18 +5,18 @@ let database = null;
 let firebaseEnabled = false;
 
 try {
-    if (firebaseConfig && firebaseConfig.apiKey !== "AIzaSyDummyKeyExample123456") {
+    if (typeof firebaseConfig !== 'undefined' && firebaseConfig.apiKey) {
         firebase.initializeApp(firebaseConfig);
         database = firebase.database();
         firebaseEnabled = true;
-        console.log('🔥 Firebase Connected');
+        console.log('🔥 Firebase Connected (Admin Mode)');
     }
 } catch (e) {
-    console.log('⚠️ Firebase not configured, using localStorage only');
+    console.log('⚠️ Firebase not configured:', e.message);
 }
 
 // ============================================================
-// DATA PESERTA DEFAULT (391 peserta dari Excel)
+// DATA PESERTA DEFAULT (391 peserta)
 // ============================================================
 const DEFAULT_PESERTA = [
     { nip: "12019114610", nama: "ABDUL ALBANI", bagian: "GA" },
@@ -422,6 +422,19 @@ let selectedIndex = { nip: -1, nama: -1, bagian: -1 };
 let filteredData = { nip: [], nama: [], bagian: [] };
 
 // ============================================================
+// JADWAL OPERASIONAL
+// ============================================================
+let jadwalOperasional = {
+    aktif: true,
+    tanggalMulai: '2026-07-21',
+    tanggalSelesai: '2026-07-25',
+    jamMulai: '08:00',
+    jamSelesai: '16:00',
+    hariKerja: [1, 2, 3, 4, 5],
+    pesanOff: '📢 Sistem sedang tutup.'
+};
+
+// ============================================================
 // TOAST
 // ============================================================
 function showToast(message, type = 'success') {
@@ -439,19 +452,18 @@ function showToast(message, type = 'success') {
 // ============================================================
 function formatTanggalWaktu() {
     const now = new Date();
-    const options = {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    };
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
     const tanggal = now.toLocaleDateString('id-ID', options);
-    const waktu = now.toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    const waktu = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     return { tanggal, waktu };
+}
+
+function formatTanggalIndonesia(tanggal) {
+    if (!tanggal) return '-';
+    const parts = tanggal.split('-');
+    const bulan = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 
+                   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+    return `${parseInt(parts[2])} ${bulan[parseInt(parts[1]) - 1]} ${parts[0]}`;
 }
 
 // ============================================================
@@ -466,21 +478,243 @@ function updateDatabaseStatus() {
             dbInfo.textContent = '✅ Siap digunakan';
             dbInfo.style.color = '#059669';
         } else {
-            dbInfo.textContent = '⚠️ Belum ada data, import Excel!';
+            dbInfo.textContent = '⚠️ Import data terlebih dahulu!';
             dbInfo.style.color = '#dc2626';
         }
     }
 }
 
 // ============================================================
+// JADWAL FUNCTIONS
+// ============================================================
+function loadJadwalFromFirebase() {
+    // 🔥 TAMPILKAN DEFAULT DULU
+    updateJadwalUI();
+    
+    if (!firebaseEnabled || !database) {
+        console.log('⚠️ Firebase tidak terhubung, pakai default');
+        return;
+    }
+    
+    database.ref('jadwalOperasional').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            jadwalOperasional = data;
+            updateJadwalUI();
+            console.log('✅ Jadwal di-load dari Firebase');
+        } else {
+            // Simpan default ke Firebase
+            saveJadwalToFirebase();
+            console.log('📦 Data kosong, simpan default ke Firebase');
+        }
+    });
+}
+
+function saveJadwalToFirebase() {
+    if (!firebaseEnabled || !database) return;
+    database.ref('jadwalOperasional').set(jadwalOperasional)
+        .then(() => {
+            showToast('✅ Jadwal berhasil disimpan!', 'success');
+            updateJadwalUI();
+        })
+        .catch((error) => {
+            showToast('⚠️ Gagal menyimpan jadwal: ' + error.message, 'error');
+        });
+}
+
+function cekJamOperasional() {
+    if (!jadwalOperasional.aktif) {
+        return { boleh: false, pesan: '📢 Sistem pengambilan antrian sedang ditutup oleh admin.' };
+    }
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    
+    if (today < jadwalOperasional.tanggalMulai || today > jadwalOperasional.tanggalSelesai) {
+        const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
+        const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
+        return { boleh: false, pesan: `📢 Pengambilan antrian hanya ${tglMulai} - ${tglSelesai}.` };
+    }
+
+    const hariIni = now.getDay();
+    let hariKerja = hariIni === 0 ? 7 : hariIni;
+    if (!jadwalOperasional.hariKerja.includes(hariKerja)) {
+        return { boleh: false, pesan: '📢 Hari ini bukan hari kerja. Cek jadwal operasional.' };
+    }
+
+    const jamSekarang = now.getHours().toString().padStart(2, '0') + ':' + 
+                        now.getMinutes().toString().padStart(2, '0');
+    
+    if (jamSekarang < jadwalOperasional.jamMulai || jamSekarang > jadwalOperasional.jamSelesai) {
+        return { boleh: false, pesan: `📢 Pengambilan nomor antrian hanya ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}.` };
+    }
+
+    return { boleh: true, pesan: '✅ Sistem buka. Silakan ambil nomor antrian.' };
+}
+
+function updateJadwalUI() {
+    const container = document.getElementById('jadwalContainer');
+    if (!container) return;
+    
+    const status = jadwalOperasional.aktif ? '🟢 Aktif' : '🔴 Ditutup';
+    const warnaStatus = jadwalOperasional.aktif ? '#059669' : '#dc2626';
+    const hariMap = {1:'Senin',2:'Selasa',3:'Rabu',4:'Kamis',5:'Jumat',6:'Sabtu',7:'Minggu'};
+    const hariKerja = jadwalOperasional.hariKerja.map(h => hariMap[h] || h).join(', ');
+    const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
+    const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
+    
+    container.innerHTML = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-calendar-alt"></i> Tanggal Mulai
+                </label>
+                <input type="date" id="tanggalMulaiInput" value="${jadwalOperasional.tanggalMulai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            </div>
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-calendar-alt"></i> Tanggal Selesai
+                </label>
+                <input type="date" id="tanggalSelesaiInput" value="${jadwalOperasional.tanggalSelesai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            </div>
+        </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-clock"></i> Jam Mulai
+                </label>
+                <input type="time" id="jamMulaiInput" value="${jadwalOperasional.jamMulai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            </div>
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-clock"></i> Jam Selesai
+                </label>
+                <input type="time" id="jamSelesaiInput" value="${jadwalOperasional.jamSelesai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+            <div style="flex:1; min-width:150px;">
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-calendar-day"></i> Hari Kerja
+                </label>
+                <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+                    ${[1,2,3,4,5,6,7].map(h => {
+                        const namaHari = {1:'Sen',2:'Sel',3:'Rab',4:'Kam',5:'Jum',6:'Sab',7:'Min'}[h];
+                        const checked = jadwalOperasional.hariKerja.includes(h) ? 'checked' : '';
+                        return `
+                            <label style="font-size:12px; display:flex; align-items:center; gap:4px; background:#f1f5f9; padding:4px 10px; border-radius:8px; cursor:pointer;">
+                                <input type="checkbox" class="hariKerjaCheck" value="${h}" ${checked} />
+                                ${namaHari}
+                            </label>
+                        `;
+                    })}
+                </div>
+            </div>
+            <div style="display:flex; align-items:flex-end; gap:8px;">
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a; display:flex; align-items:center; gap:6px;">
+                    <input type="checkbox" id="statusAktif" ${jadwalOperasional.aktif ? 'checked' : ''} />
+                    <i class="fas fa-power-off"></i> Sistem Aktif
+                </label>
+            </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="simpanJadwal()">
+                <i class="fas fa-save"></i> Simpan Jadwal
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="resetJadwalDefault()">
+                <i class="fas fa-undo"></i> Reset Default
+            </button>
+        </div>
+        <div style="margin-top:10px; padding:10px 14px; background:#f1f5f9; border-radius:8px; font-size:13px; color:#1a2a4a; display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
+            <div><strong>Status:</strong> <span style="color:${warnaStatus};">${status}</span></div>
+            <div><strong>Tanggal:</strong> ${tglMulai} - ${tglSelesai}</div>
+            <div><strong>Jam:</strong> ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}</div>
+            <div><strong>Hari:</strong> ${hariKerja}</div>
+        </div>
+    `;
+}
+
+function simpanJadwal() {
+    const tanggalMulai = document.getElementById('tanggalMulaiInput').value;
+    const tanggalSelesai = document.getElementById('tanggalSelesaiInput').value;
+    const jamMulai = document.getElementById('jamMulaiInput').value;
+    const jamSelesai = document.getElementById('jamSelesaiInput').value;
+    const statusAktif = document.getElementById('statusAktif').checked;
+    
+    const hariKerja = [];
+    document.querySelectorAll('.hariKerjaCheck:checked').forEach(cb => {
+        hariKerja.push(parseInt(cb.value));
+    });
+    
+    if (!tanggalMulai || !tanggalSelesai) {
+        showToast('⚠️ Tanggal mulai dan selesai harus diisi!', 'error');
+        return;
+    }
+    
+    if (tanggalMulai > tanggalSelesai) {
+        showToast('⚠️ Tanggal mulai harus lebih awal dari tanggal selesai!', 'error');
+        return;
+    }
+    
+    if (!jamMulai || !jamSelesai) {
+        showToast('⚠️ Jam mulai dan selesai harus diisi!', 'error');
+        return;
+    }
+    
+    if (jamMulai >= jamSelesai) {
+        showToast('⚠️ Jam mulai harus lebih awal dari jam selesai!', 'error');
+        return;
+    }
+    
+    if (hariKerja.length === 0) {
+        showToast('⚠️ Pilih minimal 1 hari kerja!', 'error');
+        return;
+    }
+    
+    jadwalOperasional = {
+        aktif: statusAktif,
+        tanggalMulai: tanggalMulai,
+        tanggalSelesai: tanggalSelesai,
+        jamMulai: jamMulai,
+        jamSelesai: jamSelesai,
+        hariKerja: hariKerja,
+        pesanOff: `📢 Pengambilan nomor antrian hanya ${formatTanggalIndonesia(tanggalMulai)} - ${formatTanggalIndonesia(tanggalSelesai)} (${jamMulai} - ${jamSelesai})`
+    };
+    
+    saveJadwalToFirebase();
+}
+
+function resetJadwalDefault() {
+    if (!confirm('Reset jadwal ke default?')) return;
+    
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    
+    jadwalOperasional = {
+        aktif: true,
+        tanggalMulai: today.toISOString().split('T')[0],
+        tanggalSelesai: nextWeek.toISOString().split('T')[0],
+        jamMulai: '08:00',
+        jamSelesai: '16:00',
+        hariKerja: [1, 2, 3, 4, 5],
+        pesanOff: '📢 Pengambilan nomor antrian hanya 08:00 - 16:00 (Senin-Jumat)'
+    };
+    
+    saveJadwalToFirebase();
+    updateJadwalUI();
+    showToast('🔄 Jadwal direset ke default', 'info');
+}
+
+// ============================================================
 // AUTOCOMPLETE
 // ============================================================
 function filterAutocomplete(field, query) {
-    const listMap = {
-        nip: 'listNip',
-        nama: 'listNama',
-        bagian: 'listBagian'
-    };
+    const listMap = { nip: 'listNip', nama: 'listNama', bagian: 'listBagian' };
     const list = document.getElementById(listMap[field]);
     const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
     const input = document.getElementById(inputId);
@@ -502,20 +736,12 @@ function filterAutocomplete(field, query) {
     } else if (field === 'nama') {
         data = masterPeserta.filter(p => p.nama && p.nama.toLowerCase().includes(q));
     } else if (field === 'bagian') {
-        const uniqueBagian = [...new Set(
-            masterPeserta
-                .map(p => p.bagian)
-                .filter(b => b && b.toLowerCase().includes(q))
-        )];
+        const uniqueBagian = [...new Set(masterPeserta.map(p => p.bagian).filter(b => b && b.toLowerCase().includes(q)))];
         data = uniqueBagian.map(b => ({ bagian: b }));
-        const exists = data.some(d => d.bagian.toLowerCase() === q);
-        if (!exists && q.length > 0) {
-            data.push({ bagian: q, isNew: true });
-        }
     }
 
     if (data.length === 0 && masterPeserta.length === 0) {
-        list.innerHTML = `<div class="autocomplete-empty">📂 Import database Excel terlebih dahulu</div>`;
+        list.innerHTML = `<div class="autocomplete-empty">📂 Belum ada data database</div>`;
         list.classList.add('show');
         return;
     }
@@ -532,10 +758,7 @@ function filterAutocomplete(field, query) {
 
     let html = '';
     data.forEach((p, idx) => {
-        let display = '',
-            sub = '',
-            badge = '',
-            isNewClass = '';
+        let display = '', sub = '', badge = '';
 
         if (field === 'nip') {
             display = p.nip;
@@ -563,9 +786,8 @@ function filterAutocomplete(field, query) {
             }
         } else if (field === 'bagian') {
             display = p.bagian;
-            sub = p.isNew ? 'Bagian baru' : 'Klik untuk memilih';
-            badge = p.isNew ? 'Baru' : '';
-            isNewClass = p.isNew ? 'is-new' : '';
+            sub = 'Klik untuk memilih';
+            badge = '';
             const qLower = q.toLowerCase();
             if (p.bagian.toLowerCase().includes(qLower)) {
                 const start = p.bagian.toLowerCase().indexOf(qLower);
@@ -577,14 +799,14 @@ function filterAutocomplete(field, query) {
         }
 
         html += `
-                <div class="autocomplete-item ${isNewClass}" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
-                    <div>
-                        <div class="main">${display}</div>
-                        ${sub ? `<div class="sub">${sub}</div>` : ''}
-                    </div>
-                    ${badge ? `<span class="badge-info" style="${p.isNew ? 'background:#059669;color:white;' : ''}">${badge}</span>` : ''}
+            <div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
+                <div>
+                    <div class="main">${display}</div>
+                    ${sub ? `<div class="sub">${sub}</div>` : ''}
                 </div>
-            `;
+                ${badge ? `<span class="badge-info">${badge}</span>` : ''}
+            </div>
+        `;
     });
 
     list.innerHTML = html;
@@ -602,11 +824,13 @@ function selectPeserta(field, index) {
         document.getElementById('inputNama').value = p.nama || '';
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
+        ambilAntrian();
     } else if (field === 'nama') {
         document.getElementById('inputNip').value = p.nip || '';
         document.getElementById('inputNama').value = p.nama;
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
+        ambilAntrian();
     } else if (field === 'bagian') {
         document.getElementById('inputBagian').value = p.bagian;
         closeAllLists();
@@ -616,11 +840,7 @@ function selectPeserta(field, index) {
 }
 
 function handleKeydown(field, e) {
-    const listMap = {
-        nip: 'listNip',
-        nama: 'listNama',
-        bagian: 'listBagian'
-    };
+    const listMap = { nip: 'listNip', nama: 'listNama', bagian: 'listBagian' };
     const list = document.getElementById(listMap[field]);
     const items = list.querySelectorAll('.autocomplete-item');
 
@@ -688,9 +908,15 @@ document.addEventListener('click', function(e) {
 });
 
 // ============================================================
-// AMBIL ANTRIAN
+// AMBIL ANTRIAN (ADMIN)
 // ============================================================
 function ambilAntrian() {
+    const cek = cekJamOperasional();
+    if (!cek.boleh) {
+        showToast(cek.pesan, 'error');
+        return;
+    }
+
     const nip = document.getElementById('inputNip').value.trim();
     const nama = document.getElementById('inputNama').value.trim();
     const bagian = document.getElementById('inputBagian').value.trim();
@@ -700,9 +926,9 @@ function ambilAntrian() {
         return;
     }
 
-    const cek = antrian.find(a => a.nip === nip);
-    if (cek) {
-        showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cek.nomor}`, 'error');
+    const cekAntrian = antrian.find(a => a.nip === nip);
+    if (cekAntrian) {
+        showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cekAntrian.nomor}`, 'error');
         clearForm();
         return;
     }
@@ -729,12 +955,10 @@ function ambilAntrian() {
 
     clearForm();
     simpanKeLocalStorage();
-    
-    // 🔥 TAMBAHKAN INI - SYNC KE FIREBASE!
     syncToFirebase();
-    
     showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
 }
+
 // ============================================================
 // CLEAR FORM
 // ============================================================
@@ -747,7 +971,21 @@ function clearForm() {
 }
 
 // ============================================================
-// TAMBAH PESERTA (Admin Only)
+// CEK ANTRIAN SAYA
+// ============================================================
+function lihatAntrianSaya() {
+    const nip = prompt('Masukkan NIP Anda:');
+    if (!nip) return;
+    const data = antrian.find(a => a.nip === nip.trim());
+    if (data) {
+        showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
+    } else {
+        showToast('😕 Anda belum mengambil antrian', 'info');
+    }
+}
+
+// ============================================================
+// TAMBAH PESERTA (ADMIN ONLY)
 // ============================================================
 function tambahPeserta() {
     const nip = prompt('Masukkan NIP:');
@@ -777,10 +1015,7 @@ function tambahPeserta() {
 }
 
 // ============================================================
-// IMPORT DATA (Admin Only)
-// ============================================================
-// ============================================================
-// IMPORT DATA - FIX UNTUK EXCEL DENGAN JUDUL
+// IMPORT DATA (ADMIN ONLY)
 // ============================================================
 function importData(event) {
     const file = event.target.files[0];
@@ -801,23 +1036,12 @@ function importData(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            
-            // 🔥 FIX: Baca data dengan range mulai dari baris 6 (setelah judul)
-            // Atau cari header yang mengandung "NO NIP"
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, {
-                header: 1,  // Baca sebagai array
-                defval: ''  // Default value untuk cell kosong
-            });
+            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
 
-            // 🔥 Cari baris header (yang mengandung "NO NIP" atau "NIP")
-            let headerRowIndex = -1;
-            let dataStartIndex = -1;
-
+            let headerRowIndex = -1, dataStartIndex = -1;
             for (let i = 0; i < jsonData.length; i++) {
                 const row = jsonData[i];
                 if (!row || row.length === 0) continue;
-                
-                // Cek apakah baris ini adalah header
                 const rowStr = row.join(' ').toUpperCase();
                 if (rowStr.includes('NO NIP') || rowStr.includes('NIP') || rowStr.includes('NAMA')) {
                     headerRowIndex = i;
@@ -831,42 +1055,27 @@ function importData(event) {
                 return;
             }
 
-            // 🔥 Ambil header
             const headerRow = jsonData[headerRowIndex];
             const headerMap = {};
             headerRow.forEach((col, idx) => {
                 const colStr = String(col).toUpperCase().trim();
-                if (colStr.includes('NIP') || colStr.includes('NO')) {
-                    headerMap['nip'] = idx;
-                } else if (colStr.includes('NAMA')) {
-                    headerMap['nama'] = idx;
-                } else if (colStr.includes('BAGIAN') || colStr.includes('DEPART')) {
-                    headerMap['bagian'] = idx;
-                }
+                if (colStr.includes('NIP') || colStr.includes('NO')) headerMap['nip'] = idx;
+                else if (colStr.includes('NAMA')) headerMap['nama'] = idx;
+                else if (colStr.includes('BAGIAN') || colStr.includes('DEPART')) headerMap['bagian'] = idx;
             });
 
-            console.log('📊 Header ditemukan di baris:', headerRowIndex + 1);
-            console.log('📊 Header map:', headerMap);
-            console.log('📊 Header row:', headerRow);
-
-            // 🔥 Ambil data dari baris setelah header
             const dataRows = jsonData.slice(dataStartIndex);
-            
-            // Filter baris kosong
             const validRows = dataRows.filter(row => {
                 const nip = row[headerMap['nip']] || '';
                 const nama = row[headerMap['nama']] || '';
                 return String(nip).trim() && String(nama).trim();
             });
 
-            console.log('📊 Total data valid:', validRows.length);
-
             if (validRows.length === 0) {
                 showToast('⚠️ Tidak ada data valid di Excel!', 'error');
                 return;
             }
 
-            // 🔥 Preview ke user
             let preview = `📊 ${validRows.length} data ditemukan\n\n`;
             preview += `📌 Header: ${headerRow.join(' | ')}\n\n`;
             preview += `📌 3 Data Pertama:\n`;
@@ -876,29 +1085,20 @@ function importData(event) {
                 const bagian = row[headerMap['bagian']] || 'Karyawan';
                 preview += `${i+1}. ${nip} | ${nama} | ${bagian}\n`;
             });
-            
+
             if (!confirm(`${preview}\n\nLanjutkan import?`)) {
                 event.target.value = '';
                 return;
             }
 
-            // 🔥 Reset dan import
-            let imported = 0;
-            let duplicate = 0;
-
+            let imported = 0, duplicate = 0;
             validRows.forEach(row => {
                 const nip = String(row[headerMap['nip']] || '').trim();
                 const nama = String(row[headerMap['nama']] || '').trim();
                 const bagian = String(row[headerMap['bagian']] || 'Karyawan').trim();
-
                 if (nip && nama) {
-                    const exists = masterPeserta.some(p => p.nip === nip);
-                    if (!exists) {
-                        masterPeserta.push({
-                            nip: nip,
-                            nama: nama,
-                            bagian: bagian || 'Karyawan'
-                        });
+                    if (!masterPeserta.some(p => p.nip === nip)) {
+                        masterPeserta.push({ nip, nama, bagian: bagian || 'Karyawan' });
                         imported++;
                     } else {
                         duplicate++;
@@ -906,39 +1106,66 @@ function importData(event) {
                 }
             });
 
-            // Simpan
             simpanSuggestionKeLocalStorage();
             syncToFirebase();
             updateDatabaseStatus();
             renderTabel();
-            
             event.target.value = '';
 
             let message = `✅ Import ${imported} peserta`;
-            if (duplicate > 0) {
-                message += `, ${duplicate} duplikat diabaikan`;
-            }
+            if (duplicate > 0) message += `, ${duplicate} duplikat diabaikan`;
             showToast(message, imported > 0 ? 'success' : 'info');
-            
-            console.log('✅ Import selesai:', { imported, duplicate, total: validRows.length });
 
         } catch (error) {
-            console.error('❌ Error:', error);
             showToast('⚠️ Gagal membaca file: ' + error.message, 'error');
             event.target.value = '';
         }
     };
-
-    reader.onerror = function() {
-        showToast('⚠️ Gagal membaca file!', 'error');
-        event.target.value = '';
-    };
-
     reader.readAsArrayBuffer(file);
 }
 
 // ============================================================
-// RENDER TABEL
+// LIHAT DATABASE (ADMIN ONLY)
+// ============================================================
+function lihatDatabase() {
+    if (masterPeserta.length === 0) {
+        showToast('📂 Belum ada database', 'info');
+        return;
+    }
+    let msg = `📋 DATABASE PESERTA\n${'═'.repeat(40)}\nTotal: ${masterPeserta.length} peserta\n\n`;
+    masterPeserta.slice(0, 20).forEach((p, i) => {
+        msg += `${String(i + 1).padStart(3)}. ${p.nip} | ${p.nama} | ${p.bagian}\n`;
+    });
+    if (masterPeserta.length > 20) msg += `\n... dan ${masterPeserta.length - 20} peserta lainnya`;
+    alert(msg);
+}
+
+// ============================================================
+// RESET DATABASE (ADMIN ONLY)
+// ============================================================
+function resetDatabase() {
+    if (masterPeserta.length === 0) {
+        showToast('⚠️ Database kosong', 'info');
+        return;
+    }
+    if (!confirm(`Hapus database (${masterPeserta.length} peserta)?`)) return;
+    masterPeserta = [];
+    localStorage.removeItem('masterPeserta');
+    syncToFirebase();
+    updateDatabaseStatus();
+    showToast('🗑️ Database direset', 'info');
+}
+
+// ============================================================
+// ADMIN REFRESH
+// ============================================================
+function adminRefresh() {
+    loadFromFirebase();
+    showToast('🔄 Data diperbarui', 'info');
+}
+
+// ============================================================
+// RENDER TABEL (ADMIN - Dengan Aksi Hapus)
 // ============================================================
 function renderTabel() {
     const tbody = document.getElementById('tbodyAntrian');
@@ -953,25 +1180,25 @@ function renderTabel() {
     let html = '';
     antrian.forEach((a, idx) => {
         html += `
-                <tr>
-                    <td>${idx + 1}</td>
-                    <td>${a.nip}</td>
-                    <td>${a.nama}</td>
-                    <td>${a.bagian}</td>
-                    <td class="nomor-cell">${a.nomor}</td>
-                    <td>
-                        <button class="btn-delete" onclick="hapusAntrian('${a.nip}')" title="Hapus antrian">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </td>
-                </tr>
-            `;
+            <tr>
+                <td>${idx + 1}</td>
+                <td>${a.nip}</td>
+                <td>${a.nama}</td>
+                <td>${a.bagian}</td>
+                <td class="nomor-cell">${a.nomor}</td>
+                <td>
+                    <button class="btn-delete" onclick="hapusAntrian('${a.nip}')" title="Hapus antrian">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
     });
     tbody.innerHTML = html;
 }
 
 // ============================================================
-// HAPUS ANTRIAN (Admin Only)
+// HAPUS ANTRIAN (ADMIN ONLY)
 // ============================================================
 function hapusAntrian(nip) {
     const peserta = antrian.find(a => a.nip === nip);
@@ -990,28 +1217,7 @@ function hapusAntrian(nip) {
 }
 
 // ============================================================
-// SAVE EXCEL (Admin Only)
-// ============================================================
-function saveExcel() {
-    if (antrian.length === 0) {
-        showToast('⚠️ Belum ada data antrian', 'error');
-        return;
-    }
-    const dataForExcel = [
-        ['#', 'NIP', 'Nama', 'Bagian', 'Nomor Antrian']
-    ];
-    antrian.forEach((a, i) => dataForExcel.push([i + 1, a.nip, a.nama, a.bagian, a.nomor]));
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(dataForExcel);
-    ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 }];
-    XLSX.utils.book_append_sheet(wb, ws, "Antrian");
-    XLSX.writeFile(wb, `Antrian_KPJ_${new Date().toISOString().slice(0, 10)}.xlsx`);
-    showToast('📥 File Excel berhasil didownload!', 'success');
-}
-
-// ============================================================
-// RESET ALL (Admin Only)
+// RESET ALL ANTRIAN (ADMIN ONLY)
 // ============================================================
 function resetAll() {
     if (antrian.length === 0) {
@@ -1029,49 +1235,22 @@ function resetAll() {
 }
 
 // ============================================================
-// LIHAT DATABASE (Admin Only)
+// SAVE EXCEL (ADMIN ONLY)
 // ============================================================
-function lihatDatabase() {
-    if (masterPeserta.length === 0) {
-        showToast('📂 Belum ada database', 'info');
+function saveExcel() {
+    if (antrian.length === 0) {
+        showToast('⚠️ Belum ada data antrian', 'error');
         return;
     }
-    let msg = `📋 DATABASE PESERTA\n${'═'.repeat(40)}\nTotal: ${masterPeserta.length} peserta\n\n`;
-    masterPeserta.slice(0, 20).forEach((p, i) => {
-        msg += `${String(i + 1).padStart(3)}. ${p.nip} | ${p.nama} | ${p.bagian}\n`;
-    });
-    if (masterPeserta.length > 20) msg += `\n... dan ${masterPeserta.length - 20} peserta lainnya`;
-    alert(msg);
-}
+    const dataForExcel = [['#', 'NIP', 'Nama', 'Bagian', 'Nomor Antrian']];
+    antrian.forEach((a, i) => dataForExcel.push([i + 1, a.nip, a.nama, a.bagian, a.nomor]));
 
-// ============================================================
-// RESET DATABASE (Admin Only)
-// ============================================================
-function resetDatabase() {
-    if (masterPeserta.length === 0) {
-        showToast('⚠️ Database kosong', 'info');
-        return;
-    }
-    if (!confirm(`Hapus database (${masterPeserta.length} peserta)?`)) return;
-    masterPeserta = [];
-    localStorage.removeItem('masterPeserta');
-    syncToFirebase();
-    updateDatabaseStatus();
-    showToast('🗑️ Database direset', 'info');
-}
-
-// ============================================================
-// CEK ANTRIAN SAYA (User Only)
-// ============================================================
-function lihatAntrianSaya() {
-    const nip = prompt('Masukkan NIP Anda:');
-    if (!nip) return;
-    const data = antrian.find(a => a.nip === nip.trim());
-    if (data) {
-        showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
-    } else {
-        showToast('😕 Anda belum mengambil antrian', 'info');
-    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(dataForExcel);
+    ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 }];
+    XLSX.utils.book_append_sheet(wb, ws, "Antrian");
+    XLSX.writeFile(wb, `Antrian_KPJ_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    showToast('📥 File Excel berhasil didownload!', 'success');
 }
 
 // ============================================================
@@ -1173,7 +1352,75 @@ function loadFromFirebase() {
 }
 
 // ============================================================
-// INIT
+// PASSWORD ADMIN (Disimpan di Firebase)
+// ============================================================
+let adminPassword = 'admin123'; // Default password
+
+// ============================================================
+// LOAD PASSWORD DARI FIREBASE
+// ============================================================
+function loadAdminPassword() {
+    if (!firebaseEnabled || !database) return;
+    database.ref('adminPassword').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            adminPassword = data;
+            console.log('🔑 Password admin di-load dari Firebase');
+        } else {
+            // Jika belum ada, simpan default
+            database.ref('adminPassword').set(adminPassword);
+            console.log('🔑 Password default disimpan ke Firebase');
+        }
+    });
+}
+
+// ============================================================
+// UBAH PASSWORD ADMIN
+// ============================================================
+function ubahPasswordAdmin() {
+    // Tampilkan dialog untuk ubah password
+    const oldPassword = prompt('🔒 Masukkan password lama:');
+    if (oldPassword === null) return;
+    
+    if (oldPassword !== adminPassword) {
+        showToast('❌ Password lama salah!', 'error');
+        return;
+    }
+    
+    const newPassword = prompt('🔑 Masukkan password baru (minimal 4 karakter):');
+    if (newPassword === null) return;
+    if (newPassword.trim().length < 4) {
+        showToast('⚠️ Password minimal 4 karakter!', 'error');
+        return;
+    }
+    
+    const confirmPassword = prompt('🔑 Konfirmasi password baru:');
+    if (confirmPassword === null) return;
+    
+    if (newPassword !== confirmPassword) {
+        showToast('❌ Password tidak cocok!', 'error');
+        return;
+    }
+    
+    // Simpan ke Firebase
+    if (!firebaseEnabled || !database) {
+        showToast('⚠️ Firebase tidak terhubung!', 'error');
+        return;
+    }
+    
+    database.ref('adminPassword').set(newPassword.trim())
+        .then(() => {
+            adminPassword = newPassword.trim();
+            showToast('✅ Password berhasil diubah!', 'success');
+            console.log('🔑 Password admin diubah');
+        })
+        .catch((error) => {
+            showToast('⚠️ Gagal menyimpan password: ' + error.message, 'error');
+        });
+}
+
+// ============================================================
+// INIT (ADMIN)
 // ============================================================
 window.onload = function() {
     const hasData = loadSuggestionDariLocalStorage();
@@ -1185,8 +1432,13 @@ window.onload = function() {
     loadDariLocalStorage();
     updateDatabaseStatus();
 
+    // 🔥 TAMPILKAN JADWAL DEFAULT DULU
+    updateJadwalUI();
+
     if (firebaseEnabled) {
         loadFromFirebase();
+        loadJadwalFromFirebase();
+        loadAdminPassword();
     }
 
     if (antrian.length === 0) {

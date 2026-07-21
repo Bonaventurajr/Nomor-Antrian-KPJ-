@@ -3,28 +3,9 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>User - Pengambilan Nomor Antrian KPJ</title>
+    <title>User - Antrian KPJ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <link rel="stylesheet" href="style.css"/>
-    <style>
-        .user-only { display: flex; }
-        .admin-only { display: none !important; }
-        .btn-delete { display: none !important; }
-        table th:last-child, table td:last-child { display: none; }
-        
-        .app-wrapper { max-width: 600px; }
-        .form-actions .btn { min-width: 100%; }
-        
-        .user-badge {
-            background: #dbeafe;
-            color: #1e3c72;
-            padding: 4px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: inline-block;
-        }
-    </style>
 </head>
 <body>
 
@@ -34,10 +15,9 @@
         <span id="toastMessage">Sukses!</span>
     </div>
 
-    <!-- APP -->
     <div class="app-wrapper">
 
-        <!-- HEADER -->
+        <!-- ===== HEADER ===== -->
         <div class="header">
             <div class="logo-atas">
                 <span class="line"></span>
@@ -50,60 +30,42 @@
             <p>Kartu Pekerja Jakarta - PT International Chemical Industry</p>
         </div>
 
-        <!-- NAVIGASI -->
-        <div class="nav-links" style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; justify-content:center;">
-            <a href="login.html" class="btn btn-outline btn-sm" style="text-decoration:none;">
-                <i class="fas fa-user-cog"></i> Admin Login
-            </a>
-            <a href="user.html" class="btn btn-primary btn-sm" style="text-decoration:none;">
-                <i class="fas fa-user"></i> User
-            </a>
+        <!-- ===== STATUS JADWAL ===== -->
+        <div id="jadwalStatus" style="background:#f1f5f9; border-radius:12px; padding:10px 14px; margin-bottom:12px; display:flex; align-items:center; gap:10px; font-size:13px; border-left:4px solid #059669;">
+            <i class="fas fa-clock" style="color:#2a5298;"></i>
+            <span id="jadwalStatusText">🔄 Memuat jadwal...</span>
         </div>
 
-        <!-- DATABASE STATUS -->
-        <div class="db-status" style="background:#f0fdf4; border:1px solid #d1fae5;">
+        <!-- ===== DATABASE STATUS ===== -->
+        <div class="db-status">
             <i class="fas fa-database"></i>
             Database: <span class="count" id="dbCount">0</span> peserta
             <span style="margin-left:auto; font-size:10px; color:#94a3b8;" id="dbInfo">✅ Siap digunakan</span>
         </div>
 
-        <!-- INFO -->
+        <!-- ===== INFO ===== -->
         <div class="info-badge">
             <i class="fas fa-search"></i>
             <span>Ketik NIP atau Nama untuk mencari data Anda</span>
         </div>
 
-        <!-- FORM -->
+        <!-- ===== FORM ===== -->
         <div class="form-card">
 
             <div class="form-row-2">
                 <div class="form-group">
                     <label><i class="fas fa-id-card"></i> NIP</label>
                     <div class="autocomplete-container">
-                        <input 
-                            type="text" 
-                            id="inputNip" 
-                            class="autocomplete-input" 
-                            placeholder="Cari atau ketik NIP..." 
-                            autocomplete="off"
-                            oninput="filterAutocomplete('nip', this.value)"
-                            onkeydown="handleKeydown('nip', event)"
-                        />
+                        <input type="text" id="inputNip" class="autocomplete-input" placeholder="Cari atau ketik NIP..." autocomplete="off"
+                               oninput="filterAutocomplete('nip', this.value)" onkeydown="handleKeydown('nip', event)"/>
                         <div class="autocomplete-list" id="listNip"></div>
                     </div>
                 </div>
                 <div class="form-group">
                     <label><i class="fas fa-user"></i> Nama</label>
                     <div class="autocomplete-container">
-                        <input 
-                            type="text" 
-                            id="inputNama" 
-                            class="autocomplete-input" 
-                            placeholder="Cari atau ketik Nama..." 
-                            autocomplete="off"
-                            oninput="filterAutocomplete('nama', this.value)"
-                            onkeydown="handleKeydown('nama', event)"
-                        />
+                        <input type="text" id="inputNama" class="autocomplete-input" placeholder="Cari atau ketik Nama..." autocomplete="off"
+                               oninput="filterAutocomplete('nama', this.value)" onkeydown="handleKeydown('nama', event)"/>
                         <div class="autocomplete-list" id="listNama"></div>
                     </div>
                 </div>
@@ -112,15 +74,8 @@
             <div class="form-group">
                 <label><i class="fas fa-building"></i> Bagian</label>
                 <div class="autocomplete-container">
-                    <input 
-                        type="text" 
-                        id="inputBagian" 
-                        class="autocomplete-input" 
-                        placeholder="Cari atau ketik Bagian..." 
-                        autocomplete="off"
-                        oninput="filterAutocomplete('bagian', this.value)"
-                        onkeydown="handleKeydown('bagian', event)"
-                    />
+                    <input type="text" id="inputBagian" class="autocomplete-input" placeholder="Cari atau ketik Bagian..." autocomplete="off"
+                           oninput="filterAutocomplete('bagian', this.value)" onkeydown="handleKeydown('bagian', event)"/>
                     <div class="autocomplete-list" id="listBagian"></div>
                 </div>
             </div>
@@ -131,31 +86,29 @@
                 </button>
             </div>
 
-            <div style="margin-top:8px; text-align:center;">
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap; justify-content:center;">
                 <button class="btn btn-outline btn-sm" onclick="clearForm()">
                     <i class="fas fa-eraser"></i> Clear Form
                 </button>
-                <button class="btn btn-outline btn-sm" onclick="lihatAntrianSaya()" style="margin-left:6px;">
+                <button class="btn btn-outline btn-sm" onclick="lihatAntrianSaya()">
                     <i class="fas fa-search"></i> Cek Antrian Saya
                 </button>
             </div>
         </div>
 
-        <!-- TICKET -->
+        <!-- ===== TICKET ===== -->
         <div class="ticket" id="ticket">
             <span class="check"><i class="fas fa-check-circle"></i></span>
             <h3>Nomor Antrian Anda</h3>
             <div class="nomor" id="nomorAntrian">001</div>
-            <div class="detail" id="detailAntrian">
-                <strong>Nama</strong> · Bagian
-            </div>
+            <div class="detail" id="detailAntrian"><strong>Nama</strong> · Bagian</div>
             <div class="waktu-antrian">
                 <span><i class="far fa-calendar-alt"></i> <span id="tanggalAmbil">-</span></span>
                 <span><i class="far fa-clock"></i> <span id="waktuAmbil">-</span></span>
             </div>
         </div>
 
-        <!-- TABLE -->
+        <!-- ===== TABLE ===== -->
         <div class="table-section">
             <div class="table-header">
                 <h4><i class="fas fa-list-ul"></i> Daftar Antrian</h4>
@@ -163,7 +116,7 @@
             </div>
             <div class="table-wrap">
                 <table>
-                    <thead><tr><th>#</th><th>NIP</th><th>Nama</th><th>Bagian</th><th>Nomor</th><th style="display:none;">Aksi</th></tr></thead>
+                    <thead><tr><th>#</th><th>NIP</th><th>Nama</th><th>Bagian</th><th>Nomor</th></tr></thead>
                     <tbody id="tbodyAntrian">
                         <tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>
                     </tbody>
@@ -171,7 +124,7 @@
             </div>
         </div>
 
-        <!-- BOTTOM ACTIONS -->
+        <!-- ===== BOTTOM ACTIONS ===== -->
         <div class="bottom-actions" style="justify-content:center;">
             <button class="btn btn-outline" onclick="lihatAntrianSaya()" style="flex:1;">
                 <i class="fas fa-search"></i> Cek Antrian Saya
@@ -189,41 +142,10 @@
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- ===== SCRIPTS ===== -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-
-    <!-- Firebase Config -->
     <script src="firebase-config.js"></script>
-    
-    <script>
-        const firebaseConfig = {
-            apiKey: "AIzaSyDummyKeyExample123456",
-            authDomain: "your-project.firebaseapp.com",
-            databaseURL: "https://your-project-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "your-project",
-            storageBucket: "your-project.appspot.com",
-            messagingSenderId: "123456789",
-            appId: "1:123456789:web:abcdef123456"
-        };
-    </script>
-    
-    <script src="script.js"></script>
-
-    <script>
-window.onload = function() {
-    // Load data dari localStorage dulu
-    loadSuggestionDariLocalStorage();
-    loadDariLocalStorage();
-    updateDatabaseStatus();
-    
-    // 🔥 Load dari Firebase
-    if (firebaseEnabled && database) {
-        loadFromFirebase();
-    }
-};
-</script>
-
+    <script src="script-user.js"></script>
 </body>
 </html>
