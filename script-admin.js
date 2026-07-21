@@ -824,13 +824,13 @@ function selectPeserta(field, index) {
         document.getElementById('inputNama').value = p.nama || '';
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
-        ambilAntrian();
+        
     } else if (field === 'nama') {
         document.getElementById('inputNip').value = p.nip || '';
         document.getElementById('inputNama').value = p.nama;
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
-        ambilAntrian();
+    
     } else if (field === 'bagian') {
         document.getElementById('inputBagian').value = p.bagian;
         closeAllLists();
