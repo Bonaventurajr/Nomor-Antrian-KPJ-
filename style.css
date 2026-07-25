@@ -370,15 +370,19 @@ body {
 }
 
 /* ===== TICKET ===== */
-.ticket {
-    background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+#ticket {
+    width: 400px;
+    max-width: 100%;
+    margin: 20px auto;
+    padding: 30px 25px 25px 25px;
+    background: #ffffff;
     border-radius: 16px;
-    padding: 16px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.12);
     text-align: center;
-    margin: 14px 0;
-    display: none;
-    border: 2px solid rgba(5, 150, 105, 0.2);
-    animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    font-family: 'Inter', -apple-system, sans-serif;
+    box-sizing: border-box;
+    /* 🔥 PENTING: jangan ada transform yang mengubah ukuran */
+    transform: none !important;
 }
 
 .ticket.show {
@@ -394,6 +398,16 @@ body {
         transform: scale(1);
         opacity: 1;
     }
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from { transform: translateY(30px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
 }
 
 .ticket .check {

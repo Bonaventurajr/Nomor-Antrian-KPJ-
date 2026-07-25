@@ -432,37 +432,153 @@ function clearForm() {
 }
 
 // ============================================================
-// CEK ANTRIAN SAYA
 // ============================================================
-function lihatAntrianSaya() {
-    const nip = prompt('Masukkan NIP Anda:');
-    if (!nip) return;
-    const data = antrian.find(a => a.nip === nip.trim());
-    if (data) {
-        showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
-    } else {
-        showToast('😕 Anda belum mengambil antrian', 'info');
+// CEK ANTRIAN SAYA + HIGHLIGHT KUNING
+// ============================================================
+    function lihatAntrianSaya() {
+        const nip = prompt('Masukkan NIP Anda:');
+        if (!nip) return;
+        const data = antrian.find(a => a.nip === nip.trim());
+        if (data) {
+            showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
+            // Highlight baris yang sesuai
+            highlightRow(nip.trim());
+        } else {
+            showToast('😕 Anda belum mengambil antrian', 'info');
+        }
     }
+
+    function highlightRow(nip) {
+    // Simpan nip yang sedang di-highlight
+    highlightedNip = nip;
+
+    // Hapus highlight sebelumnya
+    document.querySelectorAll('#tbodyAntrian tr').forEach(row => {
+        row.style.backgroundColor = '';
+        row.style.transition = 'background-color 0.3s';
+    });
+
+    const row = document.getElementById(`row-${nip}`);
+    if (row) {
+        row.style.backgroundColor = '#fef08a';
+        row.style.transition = 'background-color 0.3s';
+        requestAnimationFrame(() => {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+        clearTimeout(row._highlightTimer);
+        row._highlightTimer = setTimeout(() => {
+            row.style.backgroundColor = '';
+            highlightedNip = null;
+        }, 10000);
+    } else {
+        // Retry jika baris belum dirender
+        setTimeout(() => {
+            const rowRetry = document.getElementById(`row-${nip}`);
+            if (rowRetry) {
+                rowRetry.style.backgroundColor = '#fef08a';
+                rowRetry.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    rowRetry.style.backgroundColor = '';
+                    highlightedNip = null;
+                }, 10000);
+            }
+        }, 200);
+    }
+}
+
+    
+// ============================================================
+// KLIK BARIS TABEL → TAMPILKAN NOMOR
+// ============================================================
+function klikAntrian(nip) {
+    const data = antrian.find(a => a.nip === nip);
+    if (data) {
+        // Tampilkan di ticket atau alert
+        document.getElementById('nomorAntrian').textContent = data.nomor;
+        document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
+        const { tanggal, waktu } = formatTanggalWaktu();
+        document.getElementById('tanggalAmbil').textContent = tanggal;
+        document.getElementById('waktuAmbil').textContent = waktu;
+        document.getElementById('ticket').classList.add('show');
+        // Highlight baris yang diklik
+            highlightRow(nip);
+            showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
+        }
+    }
+
+// ============================================================
+// DOWNLOAD GAMBAR TIKET
+// ============================================================
+function downloadTicketImage() {
+    const ticket = document.getElementById('ticket');
+    // Pastikan ticket terlihat
+    if (!ticket.classList.contains('show')) {
+        showToast('⚠️ Belum ada nomor antrian untuk diunduh!', 'error');
+        return;
+    }
+
+    // Gunakan html2canvas untuk screenshot
+    html2canvas(ticket, {
+        scale: 4,
+        backgroundColor: '#fefefe',
+        allowTaint: false,
+        useCORS: true
+    }).then(canvas => {
+        // Buat link download
+        const link = document.createElement('a');
+        link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
+        link.href = canvas.toDataURL('image/png');
+        link.click();
+        showToast('📥 Tiket berhasil diunduh!', 'success');
+    }).catch(err => {
+        console.error(err);
+        showToast('⚠️ Gagal mengunduh gambar', 'error');
+    });
 }
 
 // ============================================================
 // RENDER TABEL (USER - Tanpa Aksi Hapus)
 // ============================================================
+let highlightedNip = null;
+
 function renderTabel() {
     const tbody = document.getElementById('tbodyAntrian');
     const count = document.getElementById('countAntrian');
-    count.textContent = antrian.length + ' antrian';
+    const info = document.getElementById('infoAntrian');
 
-    if (antrian.length === 0) {
+    // Gunakan data antrian (bisa difilter nanti)
+    const data = antrian; // atau filteredAntrian jika ada pencarian
+
+    const totalItems = data.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
+
+    // Pastikan currentPage tidak melebihi totalPages
+    if (currentPage > totalPages) currentPage = totalPages;
+    if (currentPage < 1) currentPage = 1;
+
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = Math.min(start + itemsPerPage, totalItems);
+    const pageData = data.slice(start, end);
+
+    count.textContent = totalItems + ' antrian';
+    if (info) info.textContent = `Menampilkan ${totalItems === 0 ? 0 : start+1} - ${end} dari ${totalItems} antrian`;
+
+    // Update tombol pagination
+    document.getElementById('prevPageBtn').disabled = (currentPage === 1 || totalItems === 0);
+    document.getElementById('nextPageBtn').disabled = (currentPage === totalPages || totalItems === 0);
+
+    if (totalItems === 0) {
         tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>`;
         return;
     }
 
     let html = '';
-    antrian.forEach((a, idx) => {
+    pageData.forEach((a, idx) => {
+        // Tambahkan id unik untuk highlight
+        const rowId = `row-${a.nip}`;
         html += `
-            <tr>
-                <td>${idx + 1}</td>
+            <tr id="${rowId}" onclick="klikAntrian('${a.nip}')" style="cursor:pointer;">
+                <td>${start + idx + 1}</td>
                 <td>${a.nip}</td>
                 <td>${a.nama}</td>
                 <td>${a.bagian}</td>
@@ -479,6 +595,13 @@ function renderTabel() {
 function simpanKeLocalStorage() {
     localStorage.setItem('antrianSembako', JSON.stringify({ antrian, nomorTerakhir }));
 }
+
+// ============================================================
+// PAGINATION
+// ============================================================
+    let currentPage = 1;
+    const itemsPerPage = 10;
+    let filteredAntrian = []; // Untuk pencarian (opsional)
 
 function loadDariLocalStorage() {
     const data = localStorage.getItem('antrianSembako');
@@ -583,6 +706,8 @@ window.onload = function() {
 
     loadDariLocalStorage();
     updateDatabaseStatus();
+    currentPage = 1;
+    renderTabel();
 
     if (firebaseEnabled) {
         loadFromFirebase();
@@ -599,3 +724,13 @@ window.onload = function() {
         setInterval(updateJadwalStatusUser, 60000);
     }
 };
+
+function nextPage() {
+    currentPage++;
+    renderTabel();
+}
+
+function prevPage() {
+    currentPage--;
+    renderTabel();
+}

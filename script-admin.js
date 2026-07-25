@@ -971,6 +971,103 @@ function clearForm() {
 }
 
 // ============================================================
+// HIGHLIGHT ADMIN (KUNING BERTAHAN 15 DETIK)
+// ============================================================
+function highlightRowAdmin(nip) {
+    // Simpan nip yang sedang di-highlight
+    highlightedNipAdmin = nip;
+
+    // Hapus highlight sebelumnya
+    document.querySelectorAll('#tbodyAntrian tr').forEach(row => {
+        row.style.backgroundColor = '';
+        row.style.transition = 'background-color 0.3s';
+    });
+
+    const row = document.getElementById(`row-admin-${nip}`);
+    if (row) {
+        // Beri highlight kuning
+        row.style.backgroundColor = '#fef08a';
+        row.style.transition = 'background-color 0.2s';
+
+        // Scroll ke baris
+        requestAnimationFrame(() => {
+            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        // Hapus timer sebelumnya jika ada
+        clearTimeout(row._highlightTimer);
+
+        // 🔥 Highlight bertahan 15 detik (ubah sesuai keinginan)
+        row._highlightTimer = setTimeout(() => {
+            row.style.backgroundColor = '';
+            highlightedNipAdmin = null;
+        }, 15000); // 15 detik
+    } else {
+        // Jika baris tidak ditemukan, coba ulang
+        setTimeout(() => {
+            const rowRetry = document.getElementById(`row-admin-${nip}`);
+            if (rowRetry) {
+                rowRetry.style.backgroundColor = '#fef08a';
+                rowRetry.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => {
+                    rowRetry.style.backgroundColor = '';
+                    highlightedNipAdmin = null;
+                }, 10000);
+            }
+        }, 200);
+    }
+}
+
+// ============================================================
+// KLIK BARIS TABEL ADMIN → TAMPILKAN NOMOR
+// ============================================================
+function klikAntrianAdmin(nip) {
+    const data = antrian.find(a => a.nip === nip);
+    if (data) {
+        document.getElementById('nomorAntrian').textContent = data.nomor;
+        document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
+        const { tanggal, waktu } = formatTanggalWaktu();
+        document.getElementById('tanggalAmbil').textContent = tanggal;
+        document.getElementById('waktuAmbil').textContent = waktu;
+        document.getElementById('ticket').classList.add('show');
+        
+        // 🔥 Highlight baris yang diklik
+        highlightRowAdmin(nip);
+        showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
+    }
+}
+
+// ============================================================
+// DOWNLOAD GAMBAR TIKET (ADMIN) - SAMA SEPERTI USER
+// ============================================================
+function downloadTicketImageAdmin() {
+    const ticket = document.getElementById('ticket');
+    if (!ticket.classList.contains('show')) {
+        showToast('⚠️ Belum ada nomor antrian untuk diunduh!', 'error');
+        return;
+    }
+
+    showToast('⏳ Sedang memproses gambar...', 'info');
+
+    html2canvas(ticket, {
+        scale: 4,
+        backgroundColor: '#ffffff',
+        allowTaint: false,
+        useCORS: true,
+        logging: false
+    }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
+        link.href = canvas.toDataURL('image/png', 1.0);
+        link.click();
+        showToast('📥 Tiket berhasil diunduh!', 'success');
+    }).catch(err => {
+        console.error(err);
+        showToast('⚠️ Gagal mengunduh gambar', 'error');
+    });
+}
+
+// ============================================================
 // CEK ANTRIAN SAYA
 // ============================================================
 function lihatAntrianSaya() {
@@ -979,11 +1076,25 @@ function lihatAntrianSaya() {
     const data = antrian.find(a => a.nip === nip.trim());
     if (data) {
         showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
+        
+        // Cari halaman yang berisi data ini
+        const index = antrian.findIndex(a => a.nip === nip.trim());
+        if (index !== -1) {
+            const page = Math.floor(index / itemsPerPageAdmin) + 1;
+            if (currentPageAdmin !== page) {
+                currentPageAdmin = page;
+                renderTabel();
+            }
+        }
+        
+        // 🔥 Highlight setelah render selesai
+        setTimeout(() => {
+            highlightRowAdmin(nip.trim());
+        }, 150);
     } else {
         showToast('😕 Anda belum mengambil antrian', 'info');
     }
 }
-
 // ============================================================
 // TAMBAH PESERTA (ADMIN ONLY)
 // ============================================================
@@ -1125,19 +1236,143 @@ function importData(event) {
 }
 
 // ============================================================
-// LIHAT DATABASE (ADMIN ONLY)
+// LIHAT DATABASE (ADMIN) - DENGAN SCROLL
 // ============================================================
 function lihatDatabase() {
     if (masterPeserta.length === 0) {
         showToast('📂 Belum ada database', 'info');
         return;
     }
-    let msg = `📋 DATABASE PESERTA\n${'═'.repeat(40)}\nTotal: ${masterPeserta.length} peserta\n\n`;
-    masterPeserta.slice(0, 20).forEach((p, i) => {
-        msg += `${String(i + 1).padStart(3)}. ${p.nip} | ${p.nama} | ${p.bagian}\n`;
+
+    // Buat modal/container untuk menampilkan data
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        padding: 20px;
+        animation: fadeIn 0.3s ease;
+    `;
+
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        max-width: 600px;
+        width: 100%;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        animation: slideUp 0.3s ease;
+    `;
+
+    // Header
+    const header = document.createElement('div');
+    header.style.cssText = `
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #e8edf5;
+    `;
+    header.innerHTML = `
+        <h3 style="margin:0; color:#1a2a4a;">
+            <i class="fas fa-database" style="color:#2a5298;"></i> 
+            Database Peserta (${masterPeserta.length})
+        </h3>
+        <button onclick="this.closest('div[style]').remove()" style="
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #94a3b8;
+            cursor: pointer;
+            padding: 0 8px;
+        ">&times;</button>
+    `;
+
+    // Body dengan scroll
+    const body = document.createElement('div');
+    body.style.cssText = `
+        overflow-y: auto;
+        flex: 1;
+        padding-right: 8px;
+    `;
+
+    // Buat tabel data
+    let tableHtml = `
+        <table style="
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        ">
+            <thead>
+                <tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 2;">
+                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">#</th>
+                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">NIP</th>
+                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">Nama</th>
+                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">Bagian</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    masterPeserta.forEach((p, i) => {
+        tableHtml += `
+            <tr>
+                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${i + 1}</td>
+                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${p.nip}</td>
+                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${p.nama}</td>
+                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${p.bagian}</td>
+            </tr>
+        `;
     });
-    if (masterPeserta.length > 20) msg += `\n... dan ${masterPeserta.length - 20} peserta lainnya`;
-    alert(msg);
+
+    tableHtml += `
+            </tbody>
+        </table>
+    `;
+
+    body.innerHTML = tableHtml;
+
+    // Footer dengan tombol tutup
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 2px solid #e8edf5;
+        text-align: center;
+    `;
+    footer.innerHTML = `
+        <button onclick="this.closest('div[style]').remove()" class="btn btn-primary" style="width:100%;">
+            <i class="fas fa-times"></i> Tutup
+        </button>
+    `;
+
+    // Gabungkan semua
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    modal.appendChild(content);
+
+    // Tambahkan ke body
+    document.body.appendChild(modal);
+
+    // Tutup modal saat klik di luar
+    modal.addEventListener('click', function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    });
 }
 
 // ============================================================
@@ -1164,30 +1399,55 @@ function adminRefresh() {
     showToast('🔄 Data diperbarui', 'info');
 }
 
+
 // ============================================================
 // RENDER TABEL (ADMIN - Dengan Aksi Hapus)
 // ============================================================
+let highlightedNipAdmin = null; // Untuk menyimpan NIP yang sedang di-highlight
 function renderTabel() {
     const tbody = document.getElementById('tbodyAntrian');
     const count = document.getElementById('countAntrian');
-    count.textContent = antrian.length + ' antrian';
+    const info = document.getElementById('infoAntrianAdmin');
 
-    if (antrian.length === 0) {
+    const data = antrian;
+    const totalItems = data.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPageAdmin) || 1;
+
+    if (currentPageAdmin > totalPages) currentPageAdmin = totalPages;
+    if (currentPageAdmin < 1) currentPageAdmin = 1;
+
+    const start = (currentPageAdmin - 1) * itemsPerPageAdmin;
+    const end = Math.min(start + itemsPerPageAdmin, totalItems);
+    const pageData = data.slice(start, end);
+
+    count.textContent = totalItems + ' antrian';
+    if (info) info.textContent = `Menampilkan ${totalItems === 0 ? 0 : start+1} - ${end} dari ${totalItems} antrian`;
+
+    // Update tombol pagination
+    const prevBtn = document.getElementById('prevPageAdminBtn');
+    const nextBtn = document.getElementById('nextPageAdminBtn');
+    if (prevBtn) prevBtn.disabled = (currentPageAdmin === 1 || totalItems === 0);
+    if (nextBtn) nextBtn.disabled = (currentPageAdmin === totalPages || totalItems === 0);
+
+    if (totalItems === 0) {
         tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>`;
         return;
     }
 
     let html = '';
-    antrian.forEach((a, idx) => {
+    pageData.forEach((a, idx) => {
+        const rowId = `row-admin-${a.nip}`;
+        // 🔥 Jika nip ini sedang di-highlight, tambahkan style langsung
+        const isHighlighted = (highlightedNipAdmin === a.nip);
         html += `
-            <tr>
-                <td>${idx + 1}</td>
+            <tr id="${rowId}" onclick="klikAntrianAdmin('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
+                <td>${start + idx + 1}</td>
                 <td>${a.nip}</td>
                 <td>${a.nama}</td>
                 <td>${a.bagian}</td>
                 <td class="nomor-cell">${a.nomor}</td>
                 <td>
-                    <button class="btn-delete" onclick="hapusAntrian('${a.nip}')" title="Hapus antrian">
+                    <button class="btn-delete" onclick="event.stopPropagation(); hapusAntrian('${a.nip}')" title="Hapus antrian">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </td>
@@ -1298,6 +1558,12 @@ function loadSuggestionDariLocalStorage() {
     }
     return false;
 }
+
+// ============================================================
+// PAGINATION (ADMIN)
+// ============================================================
+let currentPageAdmin = 1;
+const itemsPerPageAdmin = 10;
 
 // ============================================================
 // FIREBASE SYNC
@@ -1435,6 +1701,10 @@ window.onload = function() {
     // 🔥 TAMPILKAN JADWAL DEFAULT DULU
     updateJadwalUI();
 
+    // 🔥 PAGINATION: Set halaman awal ke 1
+    currentPageAdmin = 1;
+    renderTabel();
+
     if (firebaseEnabled) {
         loadFromFirebase();
         loadJadwalFromFirebase();
@@ -1449,3 +1719,13 @@ window.onload = function() {
         setInterval(syncToFirebase, 30000);
     }
 };
+
+function nextPageAdmin() {
+    currentPageAdmin++;
+    renderTabel();
+}
+
+function prevPageAdmin() {
+    currentPageAdmin--;
+    renderTabel();
+}

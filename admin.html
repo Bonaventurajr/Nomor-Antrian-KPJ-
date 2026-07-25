@@ -217,19 +217,31 @@
             </div>
         </div>
 
-        <!-- ===== BOTTOM ACTIONS ===== -->
-        <div class="bottom-actions">
-            <button class="btn btn-primary" onclick="saveExcel()" style="flex:1;"><i class="fas fa-file-excel"></i> Save Excel</button>
-            <button class="btn btn-danger" onclick="resetAll()" style="flex:1;"><i class="fas fa-trash-alt"></i> Reset Antrian</button>
-        </div>
-
-        <div class="footer-info">
-            <i class="fas fa-database"></i> Data tersimpan otomatis
-            <span id="syncStatus" style="margin-left:12px; color:#059669;">
-                <i class="fas fa-cloud"></i> Sync OK
-            </span>
-        </div>
+        <!-- ===== PAGINATION ===== -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; flex-wrap:wrap; gap:8px;">
+    <span id="infoAntrianAdmin" style="font-size:13px; color:#64748b;">Menampilkan 0 dari 0 antrian</span>
+    <div style="display:flex; gap:6px;">
+        <button class="btn btn-outline btn-sm" onclick="prevPageAdmin()" id="prevPageAdminBtn" disabled>
+            <i class="fas fa-chevron-left"></i> Sebelumnya
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="nextPageAdmin()" id="nextPageAdminBtn" disabled>
+            Selanjutnya <i class="fas fa-chevron-right"></i>
+        </button>
     </div>
+</div>
+
+        <!-- ===== BOTTOM ACTIONS ===== -->
+<div class="bottom-actions">
+    <button class="btn btn-primary" onclick="saveExcel()" style="flex:1;">
+        <i class="fas fa-file-excel"></i> Save Excel
+    </button>
+    <button class="btn btn-danger" onclick="resetAll()" style="flex:1;">
+        <i class="fas fa-trash-alt"></i> Reset Antrian
+    </button>
+    <button class="btn btn-primary" onclick="downloadTicketImageAdmin()" style="flex:1;">
+        <i class="fas fa-download"></i> Download Tiket
+    </button>
+</div>
 
     <!-- ========================================================== -->
     <!-- SCRIPTS -->
@@ -237,6 +249,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="firebase-config.js"></script>
     <script src="script-admin.js"></script>
     
