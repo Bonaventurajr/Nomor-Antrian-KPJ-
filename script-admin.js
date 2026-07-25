@@ -974,47 +974,41 @@ function clearForm() {
 // HIGHLIGHT ADMIN (KUNING BERTAHAN 15 DETIK)
 // ============================================================
 function highlightRowAdmin(nip) {
-    // Simpan nip yang sedang di-highlight
     highlightedNipAdmin = nip;
 
-    // Hapus highlight sebelumnya
     document.querySelectorAll('#tbodyAntrian tr').forEach(row => {
+        row.style.transition = 'none';
         row.style.backgroundColor = '';
-        row.style.transition = 'background-color 0.3s';
     });
 
     const row = document.getElementById(`row-admin-${nip}`);
     if (row) {
-        // Beri highlight kuning
+        row.style.transition = 'none';
         row.style.backgroundColor = '#fef08a';
-        row.style.transition = 'background-color 0.2s';
-
-        // Scroll ke baris
-        requestAnimationFrame(() => {
+        
+        setTimeout(() => {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+        }, 100);
 
-        // Hapus timer sebelumnya jika ada
         clearTimeout(row._highlightTimer);
-
-        // 🔥 Highlight bertahan 15 detik (ubah sesuai keinginan)
         row._highlightTimer = setTimeout(() => {
+            row.style.transition = 'background-color 0.5s';
             row.style.backgroundColor = '';
             highlightedNipAdmin = null;
-        }, 15000); // 15 detik
+        }, 15000);
     } else {
-        // Jika baris tidak ditemukan, coba ulang
         setTimeout(() => {
             const rowRetry = document.getElementById(`row-admin-${nip}`);
             if (rowRetry) {
+                rowRetry.style.transition = 'none';
                 rowRetry.style.backgroundColor = '#fef08a';
-                rowRetry.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 setTimeout(() => {
+                    rowRetry.style.transition = 'background-color 0.5s';
                     rowRetry.style.backgroundColor = '';
                     highlightedNipAdmin = null;
-                }, 10000);
+                }, 15000);
             }
-        }, 200);
+        }, 300);
     }
 }
 
@@ -1236,7 +1230,7 @@ function importData(event) {
 }
 
 // ============================================================
-// LIHAT DATABASE (ADMIN) - DENGAN SCROLL
+// LIHAT DATABASE (ADMIN) - DENGAN MODAL RESPONSIF
 // ============================================================
 function lihatDatabase() {
     if (masterPeserta.length === 0) {
@@ -1244,38 +1238,42 @@ function lihatDatabase() {
         return;
     }
 
-    // Buat modal/container untuk menampilkan data
+    // Buat modal container
     const modal = document.createElement('div');
+    modal.id = 'modalDatabase';
     modal.style.cssText = `
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
         height: 100%;
-        background: rgba(0,0,0,0.5);
+        background: rgba(0,0,0,0.6);
         display: flex;
         justify-content: center;
         align-items: center;
         z-index: 9999;
-        padding: 20px;
+        padding: 16px;
         animation: fadeIn 0.3s ease;
+        -webkit-overflow-scrolling: touch;
     `;
 
+    // Konten modal
     const content = document.createElement('div');
     content.style.cssText = `
         background: white;
         border-radius: 16px;
-        padding: 24px;
+        padding: 20px 16px;
         max-width: 600px;
         width: 100%;
-        max-height: 80vh;
+        max-height: 85vh;
         display: flex;
         flex-direction: column;
         box-shadow: 0 20px 60px rgba(0,0,0,0.3);
         animation: slideUp 0.3s ease;
+        position: relative;
     `;
 
-    // Header
+    // ===== HEADER =====
     const header = document.createElement('div');
     header.style.cssText = `
         display: flex;
@@ -1284,43 +1282,64 @@ function lihatDatabase() {
         margin-bottom: 12px;
         padding-bottom: 12px;
         border-bottom: 2px solid #e8edf5;
+        flex-shrink: 0;
     `;
     header.innerHTML = `
-        <h3 style="margin:0; color:#1a2a4a;">
+        <h3 style="margin:0; color:#1a2a4a; font-size:16px;">
             <i class="fas fa-database" style="color:#2a5298;"></i> 
             Database Peserta (${masterPeserta.length})
         </h3>
-        <button onclick="this.closest('div[style]').remove()" style="
-            background: none;
-            border: none;
-            font-size: 24px;
-            color: #94a3b8;
-            cursor: pointer;
-            padding: 0 8px;
-        ">&times;</button>
     `;
 
-    // Body dengan scroll
+    // ===== TOMBOL TUTUP (di header) =====
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '&times;';
+    closeBtn.style.cssText = `
+        background: none;
+        border: none;
+        font-size: 28px;
+        color: #94a3b8;
+        cursor: pointer;
+        padding: 0 8px;
+        line-height: 1;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    `;
+    closeBtn.setAttribute('aria-label', 'Tutup');
+    closeBtn.onclick = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        modal.remove();
+    };
+    // 🔥 Tambahkan event touch untuk HP
+    closeBtn.ontouchstart = function(e) {
+        e.preventDefault();
+        modal.remove();
+    };
+    header.appendChild(closeBtn);
+
+    // ===== BODY (SCROLLABLE) =====
     const body = document.createElement('div');
     body.style.cssText = `
         overflow-y: auto;
         flex: 1;
-        padding-right: 8px;
+        padding-right: 4px;
+        -webkit-overflow-scrolling: touch;
     `;
 
-    // Buat tabel data
+    // Buat tabel
     let tableHtml = `
         <table style="
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12px;
         ">
             <thead>
                 <tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 2;">
-                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">#</th>
-                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">NIP</th>
-                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">Nama</th>
-                    <th style="padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8edf5;">Bagian</th>
+                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">#</th>
+                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">NIP</th>
+                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">Nama</th>
+                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">Bagian</th>
                 </tr>
             </thead>
             <tbody>
@@ -1329,10 +1348,10 @@ function lihatDatabase() {
     masterPeserta.forEach((p, i) => {
         tableHtml += `
             <tr>
-                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${i + 1}</td>
-                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${p.nip}</td>
-                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${p.nama}</td>
-                <td style="padding: 6px 10px; border-bottom: 1px solid #f0f4fa;">${p.bagian}</td>
+                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${i + 1}</td>
+                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${p.nip}</td>
+                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${p.nama}</td>
+                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${p.bagian}</td>
             </tr>
         `;
     });
@@ -1341,38 +1360,64 @@ function lihatDatabase() {
             </tbody>
         </table>
     `;
-
     body.innerHTML = tableHtml;
 
-    // Footer dengan tombol tutup
+    // ===== FOOTER =====
     const footer = document.createElement('div');
     footer.style.cssText = `
         margin-top: 12px;
         padding-top: 12px;
         border-top: 2px solid #e8edf5;
         text-align: center;
-    `;
-    footer.innerHTML = `
-        <button onclick="this.closest('div[style]').remove()" class="btn btn-primary" style="width:100%;">
-            <i class="fas fa-times"></i> Tutup
-        </button>
+        flex-shrink: 0;
     `;
 
-    // Gabungkan semua
+    const closeFooterBtn = document.createElement('button');
+    closeFooterBtn.className = 'btn btn-primary';
+    closeFooterBtn.style.cssText = `
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        color: white;
+        font-weight: 600;
+        font-size: 15px;
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    `;
+    closeFooterBtn.innerHTML = '<i class="fas fa-times"></i> Tutup';
+    closeFooterBtn.onclick = function(e) {
+        e.preventDefault();
+        modal.remove();
+    };
+    closeFooterBtn.ontouchstart = function(e) {
+        e.preventDefault();
+        modal.remove();
+    };
+    footer.appendChild(closeFooterBtn);
+
+    // ===== GABUNGKAN =====
     content.appendChild(header);
     content.appendChild(body);
     content.appendChild(footer);
     modal.appendChild(content);
 
-    // Tambahkan ke body
-    document.body.appendChild(modal);
-
-    // Tutup modal saat klik di luar
-    modal.addEventListener('click', function(e) {
+    // ===== TUTUP MODAL SAAT KLIK DI LUAR =====
+    modal.onclick = function(e) {
         if (e.target === this) {
             this.remove();
         }
-    });
+    };
+    // 🔥 Untuk HP (touch)
+    modal.ontouchstart = function(e) {
+        if (e.target === this) {
+            this.remove();
+        }
+    };
+
+    document.body.appendChild(modal);
 }
 
 // ============================================================

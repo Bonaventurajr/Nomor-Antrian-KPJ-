@@ -448,41 +448,48 @@ function clearForm() {
         }
     }
 
-    function highlightRow(nip) {
+function highlightRow(nip) {
     // Simpan nip yang sedang di-highlight
     highlightedNip = nip;
 
-    // Hapus highlight sebelumnya
+    // Hapus highlight sebelumnya (tanpa transition)
     document.querySelectorAll('#tbodyAntrian tr').forEach(row => {
+        row.style.transition = 'none';
         row.style.backgroundColor = '';
-        row.style.transition = 'background-color 0.3s';
     });
 
     const row = document.getElementById(`row-${nip}`);
     if (row) {
+        // 🔥 Beri highlight kuning langsung (tanpa animasi)
+        row.style.transition = 'none';
         row.style.backgroundColor = '#fef08a';
-        row.style.transition = 'background-color 0.3s';
-        requestAnimationFrame(() => {
+        
+        // 🔥 Scroll ke baris (tunda sedikit agar tidak mengganggu)
+        setTimeout(() => {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        });
+        }, 100);
+
+        // 🔥 Hapus highlight setelah 15 detik
         clearTimeout(row._highlightTimer);
         row._highlightTimer = setTimeout(() => {
+            row.style.transition = 'background-color 0.5s';
             row.style.backgroundColor = '';
             highlightedNip = null;
-        }, 10000);
+        }, 15000);
     } else {
-        // Retry jika baris belum dirender
+        // Jika baris tidak ditemukan, coba ulang
         setTimeout(() => {
             const rowRetry = document.getElementById(`row-${nip}`);
             if (rowRetry) {
+                rowRetry.style.transition = 'none';
                 rowRetry.style.backgroundColor = '#fef08a';
-                rowRetry.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 setTimeout(() => {
+                    rowRetry.style.transition = 'background-color 0.5s';
                     rowRetry.style.backgroundColor = '';
                     highlightedNip = null;
-                }, 10000);
+                }, 15000);
             }
-        }, 200);
+        }, 300);
     }
 }
 
@@ -574,10 +581,11 @@ function renderTabel() {
 
     let html = '';
     pageData.forEach((a, idx) => {
-        // Tambahkan id unik untuk highlight
         const rowId = `row-${a.nip}`;
+        // 🔥 Jika nip ini sedang di-highlight, tambahkan style langsung
+        const isHighlighted = (highlightedNip === a.nip);
         html += `
-            <tr id="${rowId}" onclick="klikAntrian('${a.nip}')" style="cursor:pointer;">
+            <tr id="${rowId}" onclick="klikAntrian('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
                 <td>${start + idx + 1}</td>
                 <td>${a.nip}</td>
                 <td>${a.nama}</td>
