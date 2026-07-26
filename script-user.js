@@ -436,61 +436,61 @@ function clearForm() {
 // CEK ANTRIAN SAYA + HIGHLIGHT KUNING
 // ============================================================
     function lihatAntrianSaya() {
-        const nip = prompt('Masukkan NIP Anda:');
-        if (!nip) return;
-        const data = antrian.find(a => a.nip === nip.trim());
-        if (data) {
-            showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
-            // Highlight baris yang sesuai
-            highlightRow(nip.trim());
-        } else {
-            showToast('😕 Anda belum mengambil antrian', 'info');
+    const nip = prompt('Masukkan NIP Anda:');
+    if (!nip) return;
+    
+    const data = antrian.find(a => a.nip === nip.trim());
+    if (data) {
+        // 🔥 UPDATE TICKET dengan data yang ditemukan
+        document.getElementById('nomorAntrian').textContent = data.nomor;
+        document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
+        const { tanggal, waktu } = formatTanggalWaktu();
+        document.getElementById('tanggalAmbil').textContent = tanggal;
+        document.getElementById('waktuAmbil').textContent = waktu;
+        document.getElementById('ticket').classList.add('show');
+
+        // Cari halaman yang berisi data ini
+        const index = antrian.findIndex(a => a.nip === nip.trim());
+        if (index !== -1) {
+            const page = Math.floor(index / itemsPerPage) + 1;
+            if (currentPage !== page) {
+                currentPage = page;
+                renderTabel();
+            }
         }
+
+        // 🔥 Highlight setelah render selesai
+        setTimeout(() => {
+            highlightRow(nip.trim());
+        }, 200);
+
+        showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'success');
+    } else {
+        showToast('😕 NIP tidak ditemukan dalam antrian', 'info');
     }
+}
 
 function highlightRow(nip) {
-    // Simpan nip yang sedang di-highlight
+    // 🔥 Set NIP yang akan di-highlight
     highlightedNip = nip;
 
-    // Hapus highlight sebelumnya (tanpa transition)
-    document.querySelectorAll('#tbodyAntrian tr').forEach(row => {
-        row.style.transition = 'none';
-        row.style.backgroundColor = '';
-    });
+    // 🔥 Render ulang tabel agar highlight tercetak
+    renderTabel();
 
-    const row = document.getElementById(`row-${nip}`);
-    if (row) {
-        // 🔥 Beri highlight kuning langsung (tanpa animasi)
-        row.style.transition = 'none';
-        row.style.backgroundColor = '#fef08a';
-        
-        // 🔥 Scroll ke baris (tunda sedikit agar tidak mengganggu)
-        setTimeout(() => {
+    // 🔥 Scroll ke baris setelah render selesai
+    setTimeout(() => {
+        const row = document.getElementById(`row-${nip}`);
+        if (row) {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
+        }
+    }, 300);
 
-        // 🔥 Hapus highlight setelah 15 detik
-        clearTimeout(row._highlightTimer);
-        row._highlightTimer = setTimeout(() => {
-            row.style.transition = 'background-color 0.5s';
-            row.style.backgroundColor = '';
-            highlightedNip = null;
-        }, 15000);
-    } else {
-        // Jika baris tidak ditemukan, coba ulang
-        setTimeout(() => {
-            const rowRetry = document.getElementById(`row-${nip}`);
-            if (rowRetry) {
-                rowRetry.style.transition = 'none';
-                rowRetry.style.backgroundColor = '#fef08a';
-                setTimeout(() => {
-                    rowRetry.style.transition = 'background-color 0.5s';
-                    rowRetry.style.backgroundColor = '';
-                    highlightedNip = null;
-                }, 15000);
-            }
-        }, 300);
-    }
+    // 🔥 Hapus highlight setelah 15 detik
+    clearTimeout(window._highlightTimer);
+    window._highlightTimer = setTimeout(() => {
+        highlightedNip = null;
+        renderTabel(); // Render ulang tanpa highlight
+    }, 15000);
 }
 
     
@@ -500,18 +500,19 @@ function highlightRow(nip) {
 function klikAntrian(nip) {
     const data = antrian.find(a => a.nip === nip);
     if (data) {
-        // Tampilkan di ticket atau alert
+        // 🔥 UPDATE TICKET
         document.getElementById('nomorAntrian').textContent = data.nomor;
         document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
         const { tanggal, waktu } = formatTanggalWaktu();
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-        // Highlight baris yang diklik
-            highlightRow(nip);
-            showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
-        }
+
+        // 🔥 Highlight
+        highlightRow(nip);
+        showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
     }
+}
 
 // ============================================================
 // DOWNLOAD GAMBAR TIKET
@@ -553,13 +554,10 @@ function renderTabel() {
     const count = document.getElementById('countAntrian');
     const info = document.getElementById('infoAntrian');
 
-    // Gunakan data antrian (bisa difilter nanti)
-    const data = antrian; // atau filteredAntrian jika ada pencarian
-
+    const data = antrian;
     const totalItems = data.length;
     const totalPages = Math.ceil(totalItems / itemsPerPage) || 1;
 
-    // Pastikan currentPage tidak melebihi totalPages
     if (currentPage > totalPages) currentPage = totalPages;
     if (currentPage < 1) currentPage = 1;
 
@@ -570,7 +568,6 @@ function renderTabel() {
     count.textContent = totalItems + ' antrian';
     if (info) info.textContent = `Menampilkan ${totalItems === 0 ? 0 : start+1} - ${end} dari ${totalItems} antrian`;
 
-    // Update tombol pagination
     document.getElementById('prevPageBtn').disabled = (currentPage === 1 || totalItems === 0);
     document.getElementById('nextPageBtn').disabled = (currentPage === totalPages || totalItems === 0);
 

@@ -975,41 +975,20 @@ function clearForm() {
 // ============================================================
 function highlightRowAdmin(nip) {
     highlightedNipAdmin = nip;
+    renderTabel();
 
-    document.querySelectorAll('#tbodyAntrian tr').forEach(row => {
-        row.style.transition = 'none';
-        row.style.backgroundColor = '';
-    });
-
-    const row = document.getElementById(`row-admin-${nip}`);
-    if (row) {
-        row.style.transition = 'none';
-        row.style.backgroundColor = '#fef08a';
-        
-        setTimeout(() => {
+    setTimeout(() => {
+        const row = document.getElementById(`row-admin-${nip}`);
+        if (row) {
             row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }, 100);
+        }
+    }, 300);
 
-        clearTimeout(row._highlightTimer);
-        row._highlightTimer = setTimeout(() => {
-            row.style.transition = 'background-color 0.5s';
-            row.style.backgroundColor = '';
-            highlightedNipAdmin = null;
-        }, 15000);
-    } else {
-        setTimeout(() => {
-            const rowRetry = document.getElementById(`row-admin-${nip}`);
-            if (rowRetry) {
-                rowRetry.style.transition = 'none';
-                rowRetry.style.backgroundColor = '#fef08a';
-                setTimeout(() => {
-                    rowRetry.style.transition = 'background-color 0.5s';
-                    rowRetry.style.backgroundColor = '';
-                    highlightedNipAdmin = null;
-                }, 15000);
-            }
-        }, 300);
-    }
+    clearTimeout(window._highlightTimerAdmin);
+    window._highlightTimerAdmin = setTimeout(() => {
+        highlightedNipAdmin = null;
+        renderTabel();
+    }, 15000);
 }
 
 // ============================================================
@@ -1024,8 +1003,7 @@ function klikAntrianAdmin(nip) {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-        
-        // 🔥 Highlight baris yang diklik
+
         highlightRowAdmin(nip);
         showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
     }
@@ -1069,9 +1047,13 @@ function lihatAntrianSaya() {
     if (!nip) return;
     const data = antrian.find(a => a.nip === nip.trim());
     if (data) {
-        showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
-        
-        // Cari halaman yang berisi data ini
+        document.getElementById('nomorAntrian').textContent = data.nomor;
+        document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
+        const { tanggal, waktu } = formatTanggalWaktu();
+        document.getElementById('tanggalAmbil').textContent = tanggal;
+        document.getElementById('waktuAmbil').textContent = waktu;
+        document.getElementById('ticket').classList.add('show');
+
         const index = antrian.findIndex(a => a.nip === nip.trim());
         if (index !== -1) {
             const page = Math.floor(index / itemsPerPageAdmin) + 1;
@@ -1080,13 +1062,13 @@ function lihatAntrianSaya() {
                 renderTabel();
             }
         }
-        
-        // 🔥 Highlight setelah render selesai
+
         setTimeout(() => {
             highlightRowAdmin(nip.trim());
-        }, 150);
+        }, 200);
+        showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
     } else {
-        showToast('😕 Anda belum mengambil antrian', 'info');
+        showToast('😕 NIP tidak ditemukan dalam antrian', 'info');
     }
 }
 // ============================================================
