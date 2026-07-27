@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>Login Admin - Antrian KPJ</title>
+    <title>Login - Antrian KPJ</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: linear-gradient(135deg, #1a2a4a 0%, #2a5298 100%);
+            background: linear-gradient(135deg, #e8f0fe 0%, #d4e4f7 100%);
             min-height: 100vh;
             display: flex;
             justify-content: center;
@@ -19,12 +19,13 @@
         }
 
         .login-container {
-            max-width: 400px;
+            max-width: 420px;
             width: 100%;
             background: white;
-            border-radius: 24px;
+            border-radius: 28px;
             padding: 40px 32px;
-            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.12);
+            text-align: center;
             animation: fadeIn 0.6s ease;
         }
 
@@ -33,68 +34,232 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        .login-header { text-align: center; margin-bottom: 30px; }
-        .login-header .logo { font-size: 48px; color: #2a5298; margin-bottom: 8px; }
-        .login-header .logo img { height: 60px; width: auto; }
-        .login-header h1 { font-size: 24px; color: #1a2a4a; font-weight: 700; }
-        .login-header h1 span { color: #2a5298; }
-        .login-header p { color: #94a3b8; font-size: 14px; margin-top: 4px; }
-
-        .form-group { margin-bottom: 18px; }
-        .form-group label { display: block; font-weight: 600; font-size: 13px; color: #1a2a4a; margin-bottom: 6px; }
-        .form-group label i { margin-right: 8px; color: #2a5298; }
-        .form-group input {
-            width: 100%; padding: 12px 16px; border: 2px solid #e8edf5; border-radius: 12px;
-            font-size: 14px; transition: all 0.3s ease; outline: none; background: #f8faff;
+        /* ===== LOGO ===== */
+        .logo-area {
+            margin-bottom: 12px;
         }
-        .form-group input:focus { border-color: #2a5298; box-shadow: 0 0 0 4px rgba(42,82,152,0.1); background: white; }
-        .form-group input.error { border-color: #dc2626; background: #fef2f2; }
-
-        .btn-login {
-            width: 100%; padding: 14px; background: linear-gradient(135deg, #1e3c72, #2a5298);
-            color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700;
-            cursor: pointer; transition: all 0.3s ease; display: flex; align-items: center;
-            justify-content: center; gap: 10px;
+        .logo-area img {
+            height: 70px;
+            width: auto;
+            object-fit: contain;
         }
-        .btn-login:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(42,82,152,0.3); }
-        .btn-login:active { transform: scale(0.97); }
 
-        .error-message {
-            background: #fef2f2; color: #dc2626; padding: 10px 14px; border-radius: 10px;
-            font-size: 13px; margin-bottom: 16px; display: none; align-items: center;
-            gap: 8px; border: 1px solid #fecaca;
+        /* ===== TITLE ===== */
+        .login-title {
+            font-size: 24px;
+            font-weight: 800;
+            color: #1a2a4a;
+            letter-spacing: 2px;
+            margin-bottom: 4px;
         }
-        .error-message.show { display: flex; }
-
-        .expired-notice {
-            background: #fef3c7; color: #92400e; padding: 10px 14px; border-radius: 10px;
-            font-size: 13px; margin-bottom: 16px; display: none; align-items: center;
-            gap: 8px; border: 1px solid #f59e0b;
+        .login-title span {
+            color: #2a5298;
         }
-        .expired-notice.show { display: flex; }
 
-        .login-footer { text-align: center; margin-top: 20px; color: #94a3b8; font-size: 12px; }
-        .user-link { text-align: center; margin-top: 16px; padding-top: 16px; border-top: 1px solid #e8edf5; }
-        .user-link a { color: #64748b; text-decoration: none; font-size: 14px; transition: all 0.3s ease; }
-        .user-link a:hover { color: #2a5298; }
-        .user-link a i { margin-right: 6px; }
+        /* ===== SUB TITLE (PUK SP LEM SPSI) ===== */
+        .sub-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1a2a4a;
+            letter-spacing: 1px;
+            margin-bottom: 2px;
+        }
+        .sub-title span {
+            color: #2a5298;
+        }
 
+        .company-name {
+            font-size: 11px;
+            color: #94a3b8;
+            margin-bottom: 20px;
+            letter-spacing: 0.5px;
+        }
+
+        .login-desc {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 24px;
+        }
+
+        /* ===== BUTTONS ===== */
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .btn {
+            padding: 14px 20px;
+            border: none;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+        }
+        .btn:active { transform: scale(0.97); }
+
+        .btn-admin {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            box-shadow: 0 4px 14px rgba(30, 60, 114, 0.25);
+        }
+        .btn-admin:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(30, 60, 114, 0.35); }
+
+        .btn-user {
+            background: linear-gradient(135deg, #059669, #10b981);
+            color: white;
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.25);
+        }
+        .btn-user:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(5, 150, 105, 0.35); }
+
+        /* ===== MODAL PASSWORD ADMIN ===== */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            padding: 20px;
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.3s ease;
+        }
+        .modal-overlay.show { display: flex; }
+
+        .modal-box {
+            background: white;
+            border-radius: 24px;
+            padding: 32px 28px;
+            max-width: 380px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 30px 80px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(30px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-box .modal-icon {
+            font-size: 48px;
+            color: #2a5298;
+            margin-bottom: 8px;
+        }
+        .modal-box h3 {
+            font-size: 18px;
+            color: #1a2a4a;
+            margin-bottom: 4px;
+        }
+        .modal-box p {
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 16px;
+        }
+
+        .modal-box .form-group {
+            margin-bottom: 16px;
+        }
+        .modal-box .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e8edf5;
+            border-radius: 12px;
+            font-size: 15px;
+            transition: all 0.3s ease;
+            outline: none;
+            text-align: center;
+            background: #f8faff;
+        }
+        .modal-box .form-group input:focus {
+            border-color: #2a5298;
+            box-shadow: 0 0 0 4px rgba(42, 82, 152, 0.08);
+        }
+        .modal-box .form-group input.error {
+            border-color: #dc2626;
+            background: #fef2f2;
+        }
+
+        .modal-box .btn-modal {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        .btn-modal-primary {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+        }
+        .btn-modal-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 14px rgba(30, 60, 114, 0.25); }
+
+        .btn-modal-close {
+            background: none;
+            color: #94a3b8;
+            margin-top: 8px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+        .btn-modal-close:hover { color: #1a2a4a; }
+
+        .modal-error {
+            display: none;
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            border: 1px solid #fecaca;
+        }
+        .modal-error.show { display: block; }
+
+        /* ===== TOAST ===== */
         .toast {
-            position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
-            background: #1a2a4a; color: white; padding: 12px 20px; border-radius: 12px;
-            font-weight: 600; font-size: 13px; box-shadow: 0 8px 32px rgba(0,0,0,0.2);
-            opacity: 0; transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            pointer-events: none; z-index: 999; display: flex; align-items: center;
-            gap: 10px; max-width: 90%;
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(80px);
+            background: #1a2a4a;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 13px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none;
+            z-index: 99999;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            max-width: 90%;
         }
         .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-        .toast.error { background: #dc2626; }
         .toast.success { background: #059669; }
+        .toast.error { background: #dc2626; }
         .toast.info { background: #2a5298; }
 
+        /* ===== RESPONSIVE ===== */
         @media (max-width: 480px) {
             .login-container { padding: 28px 20px; }
-            .login-header h1 { font-size: 20px; }
+            .logo-area img { height: 55px; }
+            .login-title { font-size: 20px; }
         }
     </style>
 </head>
@@ -102,59 +267,77 @@
 
     <!-- TOAST -->
     <div id="toast" class="toast">
-        <i class="fas fa-exclamation-circle"></i>
-        <span id="toastMessage">Error!</span>
+        <i class="fas fa-check-circle"></i>
+        <span id="toastMessage">Sukses!</span>
     </div>
 
-    <!-- LOGIN FORM -->
+    <!-- ===== LOGIN PAGE ===== -->
     <div class="login-container">
-        <div class="login-header">
-            <div class="logo">
-                <img src="spsi.png" alt="Logo KPJ" onerror="this.style.display='none'"/>
-            </div>
-            <h1>Login <span></span></h1>
+
+        <!-- ===== LOGO (DI ATAS LOGIN) ===== -->
+        <div class="logo-area">
+            <img src="spsi.png" alt="Logo KPJ" onerror="this.style.display='none'"/>
+        </div>
+
+        <!-- ===== TULISAN LOGIN ===== -->
+        <h1 class="login-title"><span>LOGIN</span></h1>
+
+        <!-- ===== PUK SP LEM SPSI (DI BAWAH LOGIN) ===== -->
+        <div class="sub-title">PUK SP LEM <span>SPSI</span></div>
+        <div class="company-name">PT INTERNATIONAL CHEMICAL INDUSTRY</div>
+
+        <p class="login-desc">Pilih peran Anda untuk melanjutkan</p>
+
+        <!-- ===== BUTTONS ===== -->
+        <div class="btn-group">
+            <button class="btn btn-admin" onclick="openAdminModal()">
+                <i class="fas fa-user-cog"></i> MASUK SEBAGAI ADMIN
+            </button>
+            <button class="btn btn-user" onclick="loginUser()">
+                <i class="fas fa-user"></i> MASUK SEBAGAI USER
+            </button>
+        </div>
+
+        <div style="margin-top:16px; font-size:11px; color:#94a3b8;">
+            <i class="fas fa-shield-alt"></i> Sistem Antrian Karyawan
+        </div>
+    </div>
+
+    <!-- ===== MODAL PASSWORD ADMIN ===== -->
+    <div class="modal-overlay" id="adminModal">
+        <div class="modal-box">
+            <div class="modal-icon"><i class="fas fa-lock"></i></div>
+            <h3>HALAMAN ADMIN</h3>
             <p>Masukkan password untuk mengakses panel admin</p>
-        </div>
 
-        <!-- EXPIRED NOTICE -->
-        <div class="expired-notice" id="expiredNotice">
-            <i class="fas fa-clock"></i>
-            <span>Sesi Anda telah berakhir. Silakan login kembali.</span>
-        </div>
-
-        <!-- ERROR MESSAGE -->
-        <div class="error-message" id="errorMessage">
-            <i class="fas fa-exclamation-circle"></i>
-            <span id="errorText">Password salah!</span>
-        </div>
-
-        <form id="loginForm" onsubmit="return handleLogin(event)">
-            <div class="form-group">
-                <label><i class="fas fa-lock"></i> Password Admin</label>
-                <input type="password" id="passwordInput" placeholder="Masukkan password admin..." autofocus/>
+            <div class="modal-error" id="modalError">
+                <i class="fas fa-exclamation-circle"></i> Password salah!
             </div>
-            <button type="submit" class="btn-login"><i class="fas fa-sign-in-alt"></i> Masuk</button>
-        </form>
 
-        <div class="user-link">
-            <a href="user.html"><i class="fas fa-user"></i> Kembali ke Halaman User</a>
-        </div>
+            <div class="form-group">
+                <input type="password" id="adminPasswordInput" placeholder="Masukkan password..." autofocus/>
+            </div>
 
-        <div class="login-footer">
-            <i class="fas fa-shield-alt"></i> Halaman ini hanya untuk admin
+            <button class="btn-modal btn-modal-primary" onclick="handleAdminLogin()">
+                <i class="fas fa-sign-in-alt"></i> MASUK
+            </button>
+
+            <button class="btn-modal btn-modal-close" onclick="closeAdminModal()">
+                <i class="fas fa-times"></i> Batal
+            </button>
         </div>
     </div>
 
     <!-- ========================================================== -->
-    <!-- FIREBASE SDK -->
+    <!-- SCRIPTS -->
     <!-- ========================================================== -->
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
 
-    <!-- ========================================================== -->
-    <!-- FIREBASE CONFIG -->
-    <!-- ========================================================== -->
     <script>
+        // ============================================================
+        // FIREBASE CONFIG
+        // ============================================================
         const firebaseConfig = {
             apiKey: "AIzaSyDR7jGd0PfvzAToJKRgxbhjQ6lANtslRX4",
             authDomain: "antrian-kpj.firebaseapp.com",
@@ -166,52 +349,37 @@
             measurementId: "G-129YGSCLP8"
         };
 
-        // Inisialisasi Firebase
+        let adminPassword = 'admin123';
         let firebaseEnabled = false;
+
         try {
             firebase.initializeApp(firebaseConfig);
             firebaseEnabled = true;
-            console.log('🔥 Firebase Connected (Login Page)');
+            console.log('🔥 Firebase Connected');
         } catch (e) {
-            console.log('⚠️ Firebase not configured:', e.message);
+            console.log('⚠️ Firebase not configured');
         }
-    </script>
 
-    <!-- ========================================================== -->
-    <!-- SCRIPT LOGIN -->
-    <!-- ========================================================== -->
-    <script>
         // ============================================================
-        // PASSWORD ADMIN - LOAD DARI FIREBASE
+        // LOAD PASSWORD DARI FIREBASE
         // ============================================================
-        let adminPassword = 'admin123'; // Default fallback
-
         function loadAdminPassword() {
             if (firebaseEnabled) {
                 firebase.database().ref('adminPassword').once('value')
                     .then(snap => {
                         const data = snap.val();
-                        if (data) {
-                            adminPassword = data;
-                            console.log('🔑 Password admin dari Firebase:', adminPassword);
-                        } else {
-                            console.log('🔑 Password default digunakan (admin123)');
-                            // Jika belum ada di Firebase, simpan default
-                            firebase.database().ref('adminPassword').set('admin123');
-                        }
+                        if (data) adminPassword = data;
+                        else firebase.database().ref('adminPassword').set('admin123');
                     })
-                    .catch(err => {
-                        console.log('⚠️ Gagal load password, pakai default');
-                    });
-            } else {
-                console.log('⚠️ Firebase tidak terhubung, pakai default');
+                    .catch(() => {});
             }
         }
+        loadAdminPassword();
 
         // ============================================================
         // TOAST
         // ============================================================
-        function showToast(message, type = 'error') {
+        function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const msg = document.getElementById('toastMessage');
             toast.className = 'toast ' + type;
@@ -222,95 +390,102 @@
         }
 
         // ============================================================
-        // HANDLE LOGIN
+        // ADMIN LOGIN
         // ============================================================
-        function handleLogin(e) {
-            e.preventDefault();
-
-            const password = document.getElementById('passwordInput').value.trim();
-            const errorMessage = document.getElementById('errorMessage');
-            const errorText = document.getElementById('errorText');
-            const passwordInput = document.getElementById('passwordInput');
-            const expiredNotice = document.getElementById('expiredNotice');
-
-            // Reset error
-            errorMessage.classList.remove('show');
-            expiredNotice.classList.remove('show');
-            passwordInput.classList.remove('error');
-
-            if (!password) {
-                errorText.textContent = '⚠️ Password tidak boleh kosong!';
-                errorMessage.classList.add('show');
-                passwordInput.classList.add('error');
-                return false;
-            }
-
-            // 🔥 CEK PASSWORD (dari Firebase atau default)
-            const validPassword = adminPassword || 'admin123';
-
-            if (password === validPassword) {
-                // Login berhasil
-                sessionStorage.setItem('adminLoggedIn', 'true');
-                sessionStorage.setItem('adminLoginTime', new Date().toISOString());
-                showToast('✅ Login berhasil!', 'success');
-                setTimeout(() => {
-                    window.location.href = 'admin.html';
-                }, 600);
-            } else {
-                // Login gagal
-                errorText.textContent = '❌ Password salah! Silakan coba lagi.';
-                errorMessage.classList.add('show');
-                passwordInput.classList.add('error');
-                passwordInput.value = '';
-                passwordInput.focus();
-                showToast('❌ Password salah!', 'error');
-            }
-
-            return false;
+        function openAdminModal() {
+            document.getElementById('adminModal').classList.add('show');
+            document.getElementById('adminPasswordInput').value = '';
+            document.getElementById('adminPasswordInput').focus();
+            document.getElementById('modalError').classList.remove('show');
         }
 
-        // ============================================================
-        // ENTER KEY
-        // ============================================================
-        document.getElementById('passwordInput').addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                handleLogin(e);
+        function closeAdminModal() {
+            document.getElementById('adminModal').classList.remove('show');
+        }
+
+        function handleAdminLogin() {
+            const input = document.getElementById('adminPasswordInput');
+            const error = document.getElementById('modalError');
+            const pass = input.value.trim();
+
+            if (!pass) {
+                error.textContent = '⚠️ Password tidak boleh kosong!';
+                error.classList.add('show');
+                input.classList.add('error');
+                return;
             }
+
+            const valid = adminPassword || 'admin123';
+            if (pass === valid) {
+                sessionStorage.setItem('adminLoggedIn', 'true');
+                sessionStorage.setItem('adminLoginTime', new Date().toISOString());
+                closeAdminModal();
+                showToast('✅ Login admin berhasil!', 'success');
+                setTimeout(() => {
+                    window.location.href = 'admin.html';
+                }, 400);
+            } else {
+                error.textContent = '❌ Password salah! Silakan coba lagi.';
+                error.classList.add('show');
+                input.classList.add('error');
+                input.value = '';
+                input.focus();
+                showToast('❌ Password salah!', 'error');
+            }
+        }
+
+        // Enter key di modal
+        document.getElementById('adminPasswordInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') handleAdminLogin();
+        });
+
+        // Tutup modal saat klik di luar
+        document.getElementById('adminModal').addEventListener('click', function(e) {
+            if (e.target === this) closeAdminModal();
         });
 
         // ============================================================
-        // CEK SESSION + EXPIRED
+        // USER LOGIN (LANGSUNG MASUK, TANPA INPUT NIP)
+        // ============================================================
+        function loginUser() {
+            // Set session user
+            sessionStorage.setItem('userLoggedIn', 'true');
+            sessionStorage.setItem('userLoginTime', new Date().toISOString());
+            sessionStorage.setItem('userNama', 'User');
+            showToast('👋 Masuk sebagai user', 'info');
+            setTimeout(() => {
+                window.location.href = 'user.html';
+            }, 400);
+        }
+
+        // ============================================================
+        // CEK SESSION SAAT LOAD
         // ============================================================
         window.onload = function() {
-            // 🔥 Load password dari Firebase
-            loadAdminPassword();
-
-            // Cek apakah ada parameter expired di URL
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('expired') === '1') {
-                document.getElementById('expiredNotice').classList.add('show');
-                showToast('⏰ Sesi telah berakhir, login ulang', 'info');
-            }
-
-            // Jika sudah login, langsung ke admin
+            // Jika sudah login admin, langsung ke admin
             if (sessionStorage.getItem('adminLoggedIn') === 'true') {
                 const loginTime = sessionStorage.getItem('adminLoginTime');
-                if (loginTime) {
-                    const timeDiff = Date.now() - new Date(loginTime).getTime();
-                    if (timeDiff < 2 * 60 * 60 * 1000) { // 2 jam
-                        window.location.href = 'admin.html';
-                        return;
-                    } else {
-                        // Session expired
-                        sessionStorage.removeItem('adminLoggedIn');
-                        sessionStorage.removeItem('adminLoginTime');
-                        document.getElementById('expiredNotice').classList.add('show');
-                        showToast('⏰ Sesi telah berakhir, login ulang', 'info');
-                    }
+                if (loginTime && (Date.now() - new Date(loginTime).getTime()) < 2 * 60 * 60 * 1000) {
+                    window.location.href = 'admin.html';
+                    return;
+                } else {
+                    sessionStorage.removeItem('adminLoggedIn');
+                    sessionStorage.removeItem('adminLoginTime');
                 }
             }
 
-            document.getElementById('passwordInput').focus();
+            // Jika sudah login user, langsung ke user
+            if (sessionStorage.getItem('userLoggedIn') === 'true') {
+                const loginTime = sessionStorage.getItem('userLoginTime');
+                if (loginTime && (Date.now() - new Date(loginTime).getTime()) < 2 * 60 * 60 * 1000) {
+                    window.location.href = 'user.html';
+                    return;
+                } else {
+                    sessionStorage.removeItem('userLoggedIn');
+                    sessionStorage.removeItem('userLoginTime');
+                    sessionStorage.removeItem('userNama');
+                }
+            }
         };
     </script>
 </body>
