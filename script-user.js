@@ -395,6 +395,14 @@ function ambilAntrian() {
         return;
     }
 
+    // 3.  CEK DOUBLE DI ANTRIAN (CEGAH DUPLIKAT)
+    const existing = antrian.find(a => a.nip === nip);
+    if (existing) {
+        showToast(`⚠️ NIP "${nama}" sudah terdaftar dengan nomor ${existing.nomor}`, 'error');
+        clearForm();
+        return;
+    }
+
 
     // CEK DUPLIKAT NIP (di antrian lokal)
     const cekAntrian = antrian.find(a => a.nip === nip);

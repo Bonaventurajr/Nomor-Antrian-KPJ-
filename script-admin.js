@@ -545,6 +545,14 @@ function ambilAntrian() {
         return;
     }
 
+    // 3. CEK DOUBLE DI ANTRIAN (CEGAH DUPLIKAT)
+    const existing = antrian.find(a => a.nip === nip);
+    if (existing) {
+        showToast(`⚠️ NIP "${nama}" sudah terdaftar dengan nomor ${existing.nomor}`, 'error');
+        clearForm();
+        return;
+    }
+
 
     // 🔥 CEK DUPLIKAT NIP (di antrian lokal)
     const cekAntrian = antrian.find(a => a.nip === nip);
@@ -1435,6 +1443,29 @@ function ubahPasswordAdmin() {
         .catch((error) => {
             showToast('⚠️ Gagal menyimpan password: ' + error.message, 'error');
         });
+}
+
+// ============================================================
+// RESET NOMOR ANTRIAN (Urutkan Ulang)
+// ============================================================
+function resetNomorAntrian() {
+    if (antrian.length === 0) {
+        showToast('⚠️ Tidak ada antrian', 'info');
+        return;
+    }
+    
+    if (!confirm('Reset ulang semua nomor antrian? (1,2,3,...)')) return;
+    
+    // Urutkan ulang nomor
+    antrian.forEach((a, idx) => {
+        a.nomor = String(idx + 1).padStart(3, '0');
+    });
+    nomorTerakhir = antrian.length;
+    
+    renderTabel();
+    simpanKeLocalStorage();
+    syncToFirebase();
+    showToast(`🔄 Nomor direset! (${antrian.length} antrian)`, 'success');
 }
 
 // ============================================================
