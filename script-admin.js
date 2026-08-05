@@ -23,6 +23,10 @@ let antrian = [];
 let nomorTerakhir = 0;
 let selectedIndex = { nip: -1, nama: -1, bagian: -1 };
 let filteredData = { nip: [], nama: [], bagian: [] };
+let highlightedNipAdmin = null;
+let currentPageAdmin = 1;
+const itemsPerPageAdmin = 10;
+let isSyncing = false; // Cegah infinite loop
 
 // ============================================================
 // JADWAL OPERASIONAL
@@ -92,21 +96,12 @@ function updateDatabaseStatus() {
 // ============================================================
 function loadJadwalFromFirebase() {
     updateJadwalUI();
-    
-    if (!firebaseEnabled || !database) {
-        console.log('⚠️ Firebase tidak terhubung, pakai default');
-        return;
-    }
-    
+    if (!firebaseEnabled || !database) return;
     database.ref('jadwalOperasional').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
             jadwalOperasional = data;
             updateJadwalUI();
-            console.log('✅ Jadwal di-load dari Firebase');
-        } else {
-            saveJadwalToFirebase();
-            console.log('📦 Data kosong, simpan default ke Firebase');
         }
     });
 }
@@ -127,91 +122,59 @@ function cekJamOperasional() {
     if (!jadwalOperasional.aktif) {
         return { boleh: false, pesan: '📢 Sistem pengambilan antrian sedang ditutup oleh admin.' };
     }
-
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    
     if (today < jadwalOperasional.tanggalMulai || today > jadwalOperasional.tanggalSelesai) {
         const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
         const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
         return { boleh: false, pesan: `📢 Pengambilan antrian hanya ${tglMulai} - ${tglSelesai}.` };
     }
-
     const hariIni = now.getDay();
     let hariKerja = hariIni === 0 ? 7 : hariIni;
     if (!jadwalOperasional.hariKerja.includes(hariKerja)) {
         return { boleh: false, pesan: '📢 Hari ini bukan hari kerja. Cek jadwal operasional.' };
     }
-
-    const jamSekarang = now.getHours().toString().padStart(2, '0') + ':' + 
-                        now.getMinutes().toString().padStart(2, '0');
-    
+    const jamSekarang = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
     if (jamSekarang < jadwalOperasional.jamMulai || jamSekarang > jadwalOperasional.jamSelesai) {
         return { boleh: false, pesan: `📢 Pengambilan nomor antrian hanya ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}.` };
     }
-
     return { boleh: true, pesan: '✅ Sistem buka. Silakan ambil nomor antrian.' };
 }
 
 function updateJadwalUI() {
     const container = document.getElementById('jadwalContainer');
     if (!container) return;
-    
     const status = jadwalOperasional.aktif ? '🟢 Aktif' : '🔴 Ditutup';
     const warnaStatus = jadwalOperasional.aktif ? '#059669' : '#dc2626';
     const hariMap = {1:'Senin',2:'Selasa',3:'Rabu',4:'Kamis',5:'Jumat',6:'Sabtu',7:'Minggu'};
     const hariKerja = jadwalOperasional.hariKerja.map(h => hariMap[h] || h).join(', ');
     const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
     const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
-    
     container.innerHTML = `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
-            <div>
-                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
-                    <i class="fas fa-calendar-alt"></i> Tanggal Mulai
-                </label>
-                <input type="date" id="tanggalMulaiInput" value="${jadwalOperasional.tanggalMulai}" 
-                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-calendar-alt"></i> Tanggal Mulai</label>
+                <input type="date" id="tanggalMulaiInput" value="${jadwalOperasional.tanggalMulai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
-            <div>
-                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
-                    <i class="fas fa-calendar-alt"></i> Tanggal Selesai
-                </label>
-                <input type="date" id="tanggalSelesaiInput" value="${jadwalOperasional.tanggalSelesai}" 
-                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-calendar-alt"></i> Tanggal Selesai</label>
+                <input type="date" id="tanggalSelesaiInput" value="${jadwalOperasional.tanggalSelesai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
-            <div>
-                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
-                    <i class="fas fa-clock"></i> Jam Mulai
-                </label>
-                <input type="time" id="jamMulaiInput" value="${jadwalOperasional.jamMulai}" 
-                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-clock"></i> Jam Mulai</label>
+                <input type="time" id="jamMulaiInput" value="${jadwalOperasional.jamMulai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
-            <div>
-                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
-                    <i class="fas fa-clock"></i> Jam Selesai
-                </label>
-                <input type="time" id="jamSelesaiInput" value="${jadwalOperasional.jamSelesai}" 
-                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-clock"></i> Jam Selesai</label>
+                <input type="time" id="jamSelesaiInput" value="${jadwalOperasional.jamSelesai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
             <div style="flex:1; min-width:150px;">
-                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
-                    <i class="fas fa-calendar-day"></i> Hari Kerja
-                </label>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-calendar-day"></i> Hari Kerja</label>
                 <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
                     ${[1,2,3,4,5,6,7].map(h => {
                         const namaHari = {1:'Sen',2:'Sel',3:'Rab',4:'Kam',5:'Jum',6:'Sab',7:'Min'}[h];
                         const checked = jadwalOperasional.hariKerja.includes(h) ? 'checked' : '';
-                        return `
-                            <label style="font-size:12px; display:flex; align-items:center; gap:4px; background:#f1f5f9; padding:4px 10px; border-radius:8px; cursor:pointer;">
-                                <input type="checkbox" class="hariKerjaCheck" value="${h}" ${checked} />
-                                ${namaHari}
-                            </label>
-                        `;
+                        return `<label style="font-size:12px; display:flex; align-items:center; gap:4px; background:#f1f5f9; padding:4px 10px; border-radius:8px; cursor:pointer;"><input type="checkbox" class="hariKerjaCheck" value="${h}" ${checked} />${namaHari}</label>`;
                     })}
                 </div>
             </div>
@@ -223,12 +186,8 @@ function updateJadwalUI() {
             </div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-primary btn-sm" onclick="simpanJadwal()">
-                <i class="fas fa-save"></i> Simpan Jadwal
-            </button>
-            <button class="btn btn-outline btn-sm" onclick="resetJadwalDefault()">
-                <i class="fas fa-undo"></i> Reset Default
-            </button>
+            <button class="btn btn-primary btn-sm" onclick="simpanJadwal()"><i class="fas fa-save"></i> Simpan Jadwal</button>
+            <button class="btn btn-outline btn-sm" onclick="resetJadwalDefault()"><i class="fas fa-undo"></i> Reset Default</button>
         </div>
         <div style="margin-top:10px; padding:10px 14px; background:#f1f5f9; border-radius:8px; font-size:13px; color:#1a2a4a; display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
             <div><strong>Status:</strong> <span style="color:${warnaStatus};">${status}</span></div>
@@ -245,67 +204,23 @@ function simpanJadwal() {
     const jamMulai = document.getElementById('jamMulaiInput').value;
     const jamSelesai = document.getElementById('jamSelesaiInput').value;
     const statusAktif = document.getElementById('statusAktif').checked;
-    
     const hariKerja = [];
-    document.querySelectorAll('.hariKerjaCheck:checked').forEach(cb => {
-        hariKerja.push(parseInt(cb.value));
-    });
-    
-    if (!tanggalMulai || !tanggalSelesai) {
-        showToast('⚠️ Tanggal mulai dan selesai harus diisi!', 'error');
-        return;
-    }
-    
-    if (tanggalMulai > tanggalSelesai) {
-        showToast('⚠️ Tanggal mulai harus lebih awal dari tanggal selesai!', 'error');
-        return;
-    }
-    
-    if (!jamMulai || !jamSelesai) {
-        showToast('⚠️ Jam mulai dan selesai harus diisi!', 'error');
-        return;
-    }
-    
-    if (jamMulai >= jamSelesai) {
-        showToast('⚠️ Jam mulai harus lebih awal dari jam selesai!', 'error');
-        return;
-    }
-    
-    if (hariKerja.length === 0) {
-        showToast('⚠️ Pilih minimal 1 hari kerja!', 'error');
-        return;
-    }
-    
-    jadwalOperasional = {
-        aktif: statusAktif,
-        tanggalMulai: tanggalMulai,
-        tanggalSelesai: tanggalSelesai,
-        jamMulai: jamMulai,
-        jamSelesai: jamSelesai,
-        hariKerja: hariKerja,
-        pesanOff: `📢 Pengambilan nomor antrian hanya ${formatTanggalIndonesia(tanggalMulai)} - ${formatTanggalIndonesia(tanggalSelesai)} (${jamMulai} - ${jamSelesai})`
-    };
-    
+    document.querySelectorAll('.hariKerjaCheck:checked').forEach(cb => hariKerja.push(parseInt(cb.value)));
+    if (!tanggalMulai || !tanggalSelesai) { showToast('⚠️ Tanggal harus diisi!', 'error'); return; }
+    if (tanggalMulai > tanggalSelesai) { showToast('⚠️ Tanggal mulai harus lebih awal!', 'error'); return; }
+    if (!jamMulai || !jamSelesai) { showToast('⚠️ Jam harus diisi!', 'error'); return; }
+    if (jamMulai >= jamSelesai) { showToast('⚠️ Jam mulai harus lebih awal!', 'error'); return; }
+    if (hariKerja.length === 0) { showToast('⚠️ Pilih minimal 1 hari kerja!', 'error'); return; }
+    jadwalOperasional = { aktif: statusAktif, tanggalMulai, tanggalSelesai, jamMulai, jamSelesai, hariKerja, pesanOff: `📢 Pengambilan nomor antrian hanya ${formatTanggalIndonesia(tanggalMulai)} - ${formatTanggalIndonesia(tanggalSelesai)} (${jamMulai} - ${jamSelesai})` };
     saveJadwalToFirebase();
 }
 
 function resetJadwalDefault() {
     if (!confirm('Reset jadwal ke default?')) return;
-    
     const today = new Date();
     const nextWeek = new Date(today);
     nextWeek.setDate(today.getDate() + 7);
-    
-    jadwalOperasional = {
-        aktif: true,
-        tanggalMulai: today.toISOString().split('T')[0],
-        tanggalSelesai: nextWeek.toISOString().split('T')[0],
-        jamMulai: '08:00',
-        jamSelesai: '16:00',
-        hariKerja: [1, 2, 3, 4, 5],
-        pesanOff: '📢 Pengambilan nomor antrian hanya 08:00 - 16:00 (Senin-Jumat)'
-    };
-    
+    jadwalOperasional = { aktif: true, tanggalMulai: today.toISOString().split('T')[0], tanggalSelesai: nextWeek.toISOString().split('T')[0], jamMulai: '08:00', jamSelesai: '16:00', hariKerja: [1,2,3,4,5], pesanOff: '📢 Pengambilan nomor antrian hanya 08:00 - 16:00 (Senin-Jumat)' };
     saveJadwalToFirebase();
     updateJadwalUI();
     showToast('🔄 Jadwal direset ke default', 'info');
@@ -319,7 +234,6 @@ function filterAutocomplete(field, query) {
     const list = document.getElementById(listMap[field]);
     const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
     const input = document.getElementById(inputId);
-
     if (!query || query.trim().length === 0) {
         list.classList.remove('show');
         list.innerHTML = '';
@@ -328,10 +242,8 @@ function filterAutocomplete(field, query) {
         selectedIndex[field] = -1;
         return;
     }
-
     const q = query.toLowerCase().trim();
     let data = [];
-
     if (field === 'nip') {
         data = masterPeserta.filter(p => p.nip && p.nip.toLowerCase().includes(q));
     } else if (field === 'nama') {
@@ -340,27 +252,22 @@ function filterAutocomplete(field, query) {
         const uniqueBagian = [...new Set(masterPeserta.map(p => p.bagian).filter(b => b && b.toLowerCase().includes(q)))];
         data = uniqueBagian.map(b => ({ bagian: b }));
     }
-
     if (data.length === 0 && masterPeserta.length === 0) {
         list.innerHTML = `<div class="autocomplete-empty">📂 Belum ada data database</div>`;
         list.classList.add('show');
         return;
     }
-
     if (data.length === 0) {
         list.innerHTML = `<div class="autocomplete-empty">😕 Tidak ditemukan di database</div>`;
         list.classList.add('show');
         return;
     }
-
     data = data.slice(0, 10);
     filteredData[field] = data;
     selectedIndex[field] = -1;
-
     let html = '';
     data.forEach((p, idx) => {
         let display = '', sub = '', badge = '';
-
         if (field === 'nip') {
             display = p.nip;
             sub = p.nama || '-';
@@ -369,9 +276,7 @@ function filterAutocomplete(field, query) {
             if (p.nip.toLowerCase().includes(qLower)) {
                 const start = p.nip.toLowerCase().indexOf(qLower);
                 const end = start + q.length;
-                display = p.nip.substring(0, start) +
-                    `<span class="highlight">${p.nip.substring(start, end)}</span>` +
-                    p.nip.substring(end);
+                display = p.nip.substring(0, start) + `<span class="highlight">${p.nip.substring(start, end)}</span>` + p.nip.substring(end);
             }
         } else if (field === 'nama') {
             display = p.nama;
@@ -381,9 +286,7 @@ function filterAutocomplete(field, query) {
             if (p.nama.toLowerCase().includes(qLower)) {
                 const start = p.nama.toLowerCase().indexOf(qLower);
                 const end = start + q.length;
-                display = p.nama.substring(0, start) +
-                    `<span class="highlight">${p.nama.substring(start, end)}</span>` +
-                    p.nama.substring(end);
+                display = p.nama.substring(0, start) + `<span class="highlight">${p.nama.substring(start, end)}</span>` + p.nama.substring(end);
             }
         } else if (field === 'bagian') {
             display = p.bagian;
@@ -393,23 +296,11 @@ function filterAutocomplete(field, query) {
             if (p.bagian.toLowerCase().includes(qLower)) {
                 const start = p.bagian.toLowerCase().indexOf(qLower);
                 const end = start + q.length;
-                display = p.bagian.substring(0, start) +
-                    `<span class="highlight">${p.bagian.substring(start, end)}</span>` +
-                    p.bagian.substring(end);
+                display = p.bagian.substring(0, start) + `<span class="highlight">${p.bagian.substring(start, end)}</span>` + p.bagian.substring(end);
             }
         }
-
-        html += `
-            <div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
-                <div>
-                    <div class="main">${display}</div>
-                    ${sub ? `<div class="sub">${sub}</div>` : ''}
-                </div>
-                ${badge ? `<span class="badge-info">${badge}</span>` : ''}
-            </div>
-        `;
+        html += `<div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})"><div><div class="main">${display}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>${badge ? `<span class="badge-info">${badge}</span>` : ''}</div>`;
     });
-
     list.innerHTML = html;
     list.classList.add('show');
     if (input) input.classList.add('highlight');
@@ -419,19 +310,16 @@ function selectPeserta(field, index) {
     const data = filteredData[field];
     if (!data || !data[index]) return;
     const p = data[index];
-
     if (field === 'nip') {
         document.getElementById('inputNip').value = p.nip;
         document.getElementById('inputNama').value = p.nama || '';
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
-        
     } else if (field === 'nama') {
         document.getElementById('inputNip').value = p.nip || '';
         document.getElementById('inputNama').value = p.nama;
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
-    
     } else if (field === 'bagian') {
         document.getElementById('inputBagian').value = p.bagian;
         closeAllLists();
@@ -444,15 +332,10 @@ function handleKeydown(field, e) {
     const listMap = { nip: 'listNip', nama: 'listNama', bagian: 'listBagian' };
     const list = document.getElementById(listMap[field]);
     const items = list.querySelectorAll('.autocomplete-item');
-
     if (!list.classList.contains('show')) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            ambilAntrian();
-        }
+        if (e.key === 'Enter') { e.preventDefault(); ambilAntrian(); }
         return;
     }
-
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         if (items.length > 0) {
@@ -509,7 +392,7 @@ document.addEventListener('click', function(e) {
 });
 
 // ============================================================
-// AMBIL ANTRIAN (ADMIN)
+// AMBIL ANTRIAN
 // ============================================================
 function ambilAntrian() {
     const cek = cekJamOperasional();
@@ -517,51 +400,40 @@ function ambilAntrian() {
         showToast(cek.pesan, 'error');
         return;
     }
-
     const nip = document.getElementById('inputNip').value.trim();
     const nama = document.getElementById('inputNama').value.trim();
     const bagian = document.getElementById('inputBagian').value.trim();
-
     if (!nip || !nama || !bagian) {
         showToast('⚠️ NIP, Nama, dan Bagian harus diisi!', 'error');
         return;
     }
-
-    // 1. CEK APAKAH NIP TERDAFTAR DI MASTER PESERTA
     const peserta = masterPeserta.find(p => p.nip === nip);
     if (!peserta) {
         showToast('❌ NIP tidak terdaftar! Silakan hubungi admin.', 'error');
         clearForm();
         return;
     }
-
-    // 2. CEK FORMAT NIP - 11 DIGIT ANGKA
     if (!/^\d{11}$/.test(nip)) {
         showToast('⚠️ Format NIP salah! Harus 11 digit angka.', 'error');
         clearForm();
         return;
     }
-
-    // 3. CEK DOUBLE DI ANTRIAN (CEGAH DUPLIKAT)
+    // CEK DOUBLE LOKAL
     const existing = antrian.find(a => a.nip === nip);
     if (existing) {
         showToast(`⚠️ NIP "${nama}" sudah terdaftar dengan nomor ${existing.nomor}`, 'error');
         clearForm();
         return;
     }
-
-    // CEK DUPLIKAT NIP (di Firebase, untuk multi-user)
+    // CEK DOUBLE DI FIREBASE
     if (firebaseEnabled && database) {
-        const nipRef = database.ref('antrianData/antrian');
-        nipRef.once('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const exists = data.some(a => a.nip === nip);
-                if (exists) {
-                    showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
-                    clearForm();
-                    return;
-                }
+        database.ref('antrianData/antrian').once('value', (snapshot) => {
+            const data = snapshot.val() || [];
+            const exists = data.some(a => a.nip === nip);
+            if (exists) {
+                showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
+                clearForm();
+                return;
             }
             prosesAmbilAntrian(nip, nama, bagian);
         }).catch(() => {
@@ -573,7 +445,7 @@ function ambilAntrian() {
 }
 
 // ============================================================
-// PROSES AMBIL ANTRIAN (DENGAN ATOMIC INCREMENT)
+// PROSES AMBIL ANTRIAN (ATOMIC)
 // ============================================================
 function prosesAmbilAntrian(nip, nama, bagian) {
     if (firebaseEnabled && database) {
@@ -603,20 +475,22 @@ function prosesAmbilAntrian(nip, nama, bagian) {
 // SIMPAN ANTRIAN KE FIREBASE
 // ============================================================
 function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
-    const data = {
-        nip, nama, bagian, nomor: nomorBaru
-    };
-
+    const data = { nip, nama, bagian, nomor: nomorBaru };
     database.ref('antrianData/antrian').once('value', (snapshot) => {
         let antrianData = snapshot.val() || [];
-        const exists = antrianData.some(a => a.nip === nip);
-        if (exists) {
-            showToast(`⚠️ NIP "${nama}" sudah terdaftar!`, 'error');
+        if (antrianData.some(a => a.nip === nip)) {
+            showToast('⚠️ NIP sudah terdaftar!', 'error');
             clearForm();
             return;
         }
         antrianData.push(data);
         database.ref('antrianData/antrian').set(antrianData)
+            .then(() => {
+                return database.ref('antrianData/nomorTerakhir').set(antrianData.length);
+            })
+            .then(() => {
+                return database.ref('antrianData/lastUpdated').set(Date.now());
+            })
             .then(() => {
                 antrian.push(data);
                 renderTabel();
@@ -638,7 +512,7 @@ function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
 }
 
 // ============================================================
-// SIMPAN ANTRIAN LOKAL (tanpa Firebase)
+// SIMPAN ANTRIAN LOKAL
 // ============================================================
 function simpanAntrianLokal(nip, nama, bagian, nomorBaru) {
     antrian.push({ nip, nama, bagian, nomor: nomorBaru });
@@ -667,19 +541,15 @@ function clearForm() {
 }
 
 // ============================================================
-// HIGHLIGHT ADMIN (KUNING BERTAHAN 15 DETIK)
+// HIGHLIGHT ADMIN
 // ============================================================
 function highlightRowAdmin(nip) {
     highlightedNipAdmin = nip;
     renderTabel();
-
     setTimeout(() => {
         const row = document.getElementById(`row-admin-${nip}`);
-        if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 300);
-
     clearTimeout(window._highlightTimerAdmin);
     window._highlightTimerAdmin = setTimeout(() => {
         highlightedNipAdmin = null;
@@ -687,9 +557,6 @@ function highlightRowAdmin(nip) {
     }, 15000);
 }
 
-// ============================================================
-// KLIK BARIS TABEL ADMIN → TAMPILKAN NOMOR
-// ============================================================
 function klikAntrianAdmin(nip) {
     const data = antrian.find(a => a.nip === nip);
     if (data) {
@@ -699,14 +566,13 @@ function klikAntrianAdmin(nip) {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-
         highlightRowAdmin(nip);
         showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
     }
 }
 
 // ============================================================
-// DOWNLOAD GAMBAR TIKET (ADMIN)
+// DOWNLOAD TIKET
 // ============================================================
 function downloadTicketImageAdmin() {
     const ticket = document.getElementById('ticket');
@@ -714,25 +580,19 @@ function downloadTicketImageAdmin() {
         showToast('⚠️ Belum ada nomor antrian untuk diunduh!', 'error');
         return;
     }
-
     showToast('⏳ Sedang memproses gambar...', 'info');
-
-    html2canvas(ticket, {
-        scale: 4,
-        backgroundColor: '#ffffff',
-        allowTaint: false,
-        useCORS: true,
-        logging: false
-    }).then(canvas => {
-        const link = document.createElement('a');
-        link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
-        link.href = canvas.toDataURL('image/png', 1.0);
-        link.click();
-        showToast('📥 Tiket berhasil diunduh!', 'success');
-    }).catch(err => {
-        console.error(err);
-        showToast('⚠️ Gagal mengunduh gambar', 'error');
-    });
+    html2canvas(ticket, { scale: 4, backgroundColor: '#ffffff', allowTaint: false, useCORS: true, logging: false })
+        .then(canvas => {
+            const link = document.createElement('a');
+            link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+            link.click();
+            showToast('📥 Tiket berhasil diunduh!', 'success');
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('⚠️ Gagal mengunduh gambar', 'error');
+        });
 }
 
 // ============================================================
@@ -749,7 +609,6 @@ function lihatAntrianSaya() {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-
         const index = antrian.findIndex(a => a.nip === nip.trim());
         if (index !== -1) {
             const page = Math.floor(index / itemsPerPageAdmin) + 1;
@@ -758,10 +617,7 @@ function lihatAntrianSaya() {
                 renderTabel();
             }
         }
-
-        setTimeout(() => {
-            highlightRowAdmin(nip.trim());
-        }, 200);
+        setTimeout(() => highlightRowAdmin(nip.trim()), 200);
         showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
     } else {
         showToast('😕 NIP tidak ditemukan dalam antrian', 'info');
@@ -769,28 +625,20 @@ function lihatAntrianSaya() {
 }
 
 // ============================================================
-// TAMBAH PESERTA (ADMIN ONLY)
+// TAMBAH PESERTA
 // ============================================================
 function tambahPeserta() {
     const nip = prompt('Masukkan NIP:');
     if (nip === null) return;
-    if (!nip.trim()) {
-        showToast('⚠️ NIP harus diisi!', 'error');
-        return;
-    }
+    if (!nip.trim()) { showToast('⚠️ NIP harus diisi!', 'error'); return; }
     const nama = prompt('Masukkan Nama:');
     if (nama === null) return;
-    if (!nama.trim()) {
-        showToast('⚠️ Nama harus diisi!', 'error');
-        return;
-    }
+    if (!nama.trim()) { showToast('⚠️ Nama harus diisi!', 'error'); return; }
     const bagian = prompt('Masukkan Bagian:', 'Karyawan') || 'Karyawan';
-
     if (masterPeserta.some(p => p.nip === nip.trim())) {
         showToast('⚠️ NIP sudah terdaftar!', 'error');
         return;
     }
-
     masterPeserta.push({ nip: nip.trim(), nama: nama.trim(), bagian: bagian.trim() });
     simpanSuggestionKeLocalStorage();
     syncToFirebase();
@@ -799,21 +647,16 @@ function tambahPeserta() {
 }
 
 // ============================================================
-// IMPORT DATA (ADMIN ONLY)
+// IMPORT DATA
 // ============================================================
 function importData(event) {
     const file = event.target.files[0];
-    if (!file) {
-        showToast('⚠️ Pilih file terlebih dahulu!', 'error');
-        return;
-    }
-
+    if (!file) { showToast('⚠️ Pilih file terlebih dahulu!', 'error'); return; }
     const ext = file.name.split('.').pop().toLowerCase();
     if (!['xlsx', 'xls', 'csv'].includes(ext)) {
         showToast('⚠️ Format file harus .xlsx, .xls, atau .csv', 'error');
         return;
     }
-
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
@@ -821,7 +664,6 @@ function importData(event) {
             const workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-
             let headerRowIndex = -1, dataStartIndex = -1;
             for (let i = 0; i < jsonData.length; i++) {
                 const row = jsonData[i];
@@ -833,12 +675,10 @@ function importData(event) {
                     break;
                 }
             }
-
             if (headerRowIndex === -1 || dataStartIndex === -1) {
                 showToast('⚠️ Tidak menemukan header (NO NIP / NAMA / BAGIAN)', 'error');
                 return;
             }
-
             const headerRow = jsonData[headerRowIndex];
             const headerMap = {};
             headerRow.forEach((col, idx) => {
@@ -847,34 +687,24 @@ function importData(event) {
                 else if (colStr.includes('NAMA')) headerMap['nama'] = idx;
                 else if (colStr.includes('BAGIAN') || colStr.includes('DEPART')) headerMap['bagian'] = idx;
             });
-
             const dataRows = jsonData.slice(dataStartIndex);
             const validRows = dataRows.filter(row => {
                 const nip = row[headerMap['nip']] || '';
                 const nama = row[headerMap['nama']] || '';
                 return String(nip).trim() && String(nama).trim();
             });
-
             if (validRows.length === 0) {
                 showToast('⚠️ Tidak ada data valid di Excel!', 'error');
                 return;
             }
-
-            let preview = `📊 ${validRows.length} data ditemukan\n\n`;
-            preview += `📌 Header: ${headerRow.join(' | ')}\n\n`;
-            preview += `📌 3 Data Pertama:\n`;
+            let preview = `📊 ${validRows.length} data ditemukan\n\n📌 Header: ${headerRow.join(' | ')}\n\n📌 3 Data Pertama:\n`;
             validRows.slice(0, 3).forEach((row, i) => {
                 const nip = row[headerMap['nip']] || '';
                 const nama = row[headerMap['nama']] || '';
                 const bagian = row[headerMap['bagian']] || 'Karyawan';
                 preview += `${i+1}. ${nip} | ${nama} | ${bagian}\n`;
             });
-
-            if (!confirm(`${preview}\n\nLanjutkan import?`)) {
-                event.target.value = '';
-                return;
-            }
-
+            if (!confirm(`${preview}\n\nLanjutkan import?`)) { event.target.value = ''; return; }
             let imported = 0, duplicate = 0;
             validRows.forEach(row => {
                 const nip = String(row[headerMap['nip']] || '').trim();
@@ -889,17 +719,14 @@ function importData(event) {
                     }
                 }
             });
-
             simpanSuggestionKeLocalStorage();
             syncToFirebase();
             updateDatabaseStatus();
             renderTabel();
             event.target.value = '';
-
             let message = `✅ Import ${imported} peserta`;
             if (duplicate > 0) message += `, ${duplicate} duplikat diabaikan`;
             showToast(message, imported > 0 ? 'success' : 'info');
-
         } catch (error) {
             showToast('⚠️ Gagal membaca file: ' + error.message, 'error');
             event.target.value = '';
@@ -909,186 +736,54 @@ function importData(event) {
 }
 
 // ============================================================
-// LIHAT DATABASE (ADMIN)
+// LIHAT DATABASE
 // ============================================================
 function lihatDatabase() {
     if (masterPeserta.length === 0) {
         showToast('📂 Belum ada database', 'info');
         return;
     }
-
     const modal = document.createElement('div');
-    modal.id = 'modalDatabase';
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.6);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 9999;
-        padding: 16px;
-        animation: fadeIn 0.3s ease;
-        -webkit-overflow-scrolling: touch;
-    `;
-
+    modal.style.cssText = `position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:center; z-index:9999; padding:16px; animation:fadeIn 0.3s ease; -webkit-overflow-scrolling:touch;`;
     const content = document.createElement('div');
-    content.style.cssText = `
-        background: white;
-        border-radius: 16px;
-        padding: 20px 16px;
-        max-width: 600px;
-        width: 100%;
-        max-height: 85vh;
-        display: flex;
-        flex-direction: column;
-        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-        animation: slideUp 0.3s ease;
-        position: relative;
-    `;
-
+    content.style.cssText = `background:white; border-radius:16px; padding:20px 16px; max-width:600px; width:100%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;`;
     const header = document.createElement('div');
-    header.style.cssText = `
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 12px;
-        padding-bottom: 12px;
-        border-bottom: 2px solid #e8edf5;
-        flex-shrink: 0;
-    `;
-    header.innerHTML = `
-        <h3 style="margin:0; color:#1a2a4a; font-size:16px;">
-            <i class="fas fa-database" style="color:#2a5298;"></i> 
-            Database Peserta (${masterPeserta.length})
-        </h3>
-    `;
-
+    header.style.cssText = `display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:2px solid #e8edf5; flex-shrink:0;`;
+    header.innerHTML = `<h3 style="margin:0; color:#1a2a4a; font-size:16px;"><i class="fas fa-database" style="color:#2a5298;"></i> Database Peserta (${masterPeserta.length})</h3>`;
     const closeBtn = document.createElement('button');
     closeBtn.innerHTML = '&times;';
-    closeBtn.style.cssText = `
-        background: none;
-        border: none;
-        font-size: 28px;
-        color: #94a3b8;
-        cursor: pointer;
-        padding: 0 8px;
-        line-height: 1;
-        -webkit-tap-highlight-color: transparent;
-        touch-action: manipulation;
-    `;
-    closeBtn.setAttribute('aria-label', 'Tutup');
-    closeBtn.onclick = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        modal.remove();
-    };
-    closeBtn.ontouchstart = function(e) {
-        e.preventDefault();
-        modal.remove();
-    };
+    closeBtn.style.cssText = `background:none; border:none; font-size:28px; color:#94a3b8; cursor:pointer; padding:0 8px; line-height:1;`;
+    closeBtn.onclick = function() { modal.remove(); };
     header.appendChild(closeBtn);
-
     const body = document.createElement('div');
-    body.style.cssText = `
-        overflow-y: auto;
-        flex: 1;
-        padding-right: 4px;
-        -webkit-overflow-scrolling: touch;
-    `;
-
-    let tableHtml = `
-        <table style="width:100%; border-collapse:collapse; font-size:12px;">
-            <thead>
-                <tr style="background:#f1f5f9; position:sticky; top:0; z-index:2;">
-                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">#</th>
-                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">NIP</th>
-                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Nama</th>
-                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Bagian</th>
-                </tr>
-            </thead>
-            <tbody>
-    `;
-
+    body.style.cssText = `overflow-y:auto; flex:1; padding-right:4px; -webkit-overflow-scrolling:touch;`;
+    let tableHtml = `<table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f1f5f9; position:sticky; top:0; z-index:2;"><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">#</th><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">NIP</th><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Nama</th><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Bagian</th></tr></thead><tbody>`;
     masterPeserta.forEach((p, i) => {
-        tableHtml += `
-            <tr>
-                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${i + 1}</td>
-                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nip}</td>
-                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nama}</td>
-                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.bagian}</td>
-            </tr>
-        `;
+        tableHtml += `<tr><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${i+1}</td><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nip}</td><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nama}</td><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.bagian}</td></tr>`;
     });
-
     tableHtml += `</tbody></table>`;
     body.innerHTML = tableHtml;
-
     const footer = document.createElement('div');
-    footer.style.cssText = `
-        margin-top: 12px;
-        padding-top: 12px;
-        border-top: 2px solid #e8edf5;
-        text-align: center;
-        flex-shrink: 0;
-    `;
-
+    footer.style.cssText = `margin-top:12px; padding-top:12px; border-top:2px solid #e8edf5; text-align:center; flex-shrink:0;`;
     const closeFooterBtn = document.createElement('button');
     closeFooterBtn.className = 'btn btn-primary';
-    closeFooterBtn.style.cssText = `
-        width: 100%;
-        padding: 12px;
-        border: none;
-        border-radius: 12px;
-        background: linear-gradient(135deg, #1e3c72, #2a5298);
-        color: white;
-        font-weight: 600;
-        font-size: 15px;
-        cursor: pointer;
-        -webkit-tap-highlight-color: transparent;
-        touch-action: manipulation;
-    `;
+    closeFooterBtn.style.cssText = `width:100%; padding:12px; border:none; border-radius:12px; background:linear-gradient(135deg, #1e3c72, #2a5298); color:white; font-weight:600; font-size:15px; cursor:pointer;`;
     closeFooterBtn.innerHTML = '<i class="fas fa-times"></i> Tutup';
-    closeFooterBtn.onclick = function(e) {
-        e.preventDefault();
-        modal.remove();
-    };
-    closeFooterBtn.ontouchstart = function(e) {
-        e.preventDefault();
-        modal.remove();
-    };
+    closeFooterBtn.onclick = function() { modal.remove(); };
     footer.appendChild(closeFooterBtn);
-
     content.appendChild(header);
     content.appendChild(body);
     content.appendChild(footer);
     modal.appendChild(content);
-
-    modal.onclick = function(e) {
-        if (e.target === this) {
-            this.remove();
-        }
-    };
-    modal.ontouchstart = function(e) {
-        if (e.target === this) {
-            this.remove();
-        }
-    };
-
+    modal.onclick = function(e) { if (e.target === this) this.remove(); };
     document.body.appendChild(modal);
 }
 
 // ============================================================
-// RESET DATABASE (ADMIN ONLY)
+// RESET DATABASE
 // ============================================================
 function resetDatabase() {
-    if (masterPeserta.length === 0) {
-        showToast('⚠️ Database kosong', 'info');
-        return;
-    }
+    if (masterPeserta.length === 0) { showToast('⚠️ Database kosong', 'info'); return; }
     if (!confirm(`Hapus database (${masterPeserta.length} peserta)?`)) return;
     masterPeserta = [];
     localStorage.removeItem('masterPeserta');
@@ -1106,12 +801,10 @@ function adminRefresh() {
 }
 
 // ============================================================
-// RENDER TABEL (ADMIN - Dengan Aksi Hapus)
+// RENDER TABEL
 // ============================================================
-let highlightedNipAdmin = null;
-
 function renderTabel() {
-    // 🔥 AUTO RESET NOMOR SEBELUM RENDER
+    // 🔥 AUTO RESET NOMOR - PASTIKAN URUT!
     if (antrian.length > 0) {
         antrian.forEach((a, idx) => {
             a.nomor = String(idx + 1).padStart(3, '0');
@@ -1151,35 +844,26 @@ function renderTabel() {
     pageData.forEach((a, idx) => {
         const rowId = `row-admin-${a.nip}`;
         const isHighlighted = (highlightedNipAdmin === a.nip);
-        html += `
-            <tr id="${rowId}" onclick="klikAntrianAdmin('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
-                <td>${start + idx + 1}</td>
-                <td>${a.nip}</td>
-                <td>${a.nama}</td>
-                <td>${a.bagian}</td>
-                <td class="nomor-cell">${a.nomor}</td>
-                <td>
-                    <button class="btn-delete" onclick="event.stopPropagation(); hapusAntrian('${a.nip}')" title="Hapus antrian">
-                        <i class="fas fa-trash-alt"></i>
-                    </button>
-                </td>
-            </tr>
-        `;
+        html += `<tr id="${rowId}" onclick="klikAntrianAdmin('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
+            <td>${start + idx + 1}</td>
+            <td>${a.nip}</td>
+            <td>${a.nama}</td>
+            <td>${a.bagian}</td>
+            <td class="nomor-cell">${a.nomor}</td>
+            <td><button class="btn-delete" onclick="event.stopPropagation(); hapusAntrian('${a.nip}')" title="Hapus antrian"><i class="fas fa-trash-alt"></i></button></td>
+        </tr>`;
     });
     tbody.innerHTML = html;
-
-    // 🔥 SIMPAN SETELAH RENDER
     simpanKeLocalStorage();
 }
 
 // ============================================================
-// HAPUS ANTRIAN (ADMIN ONLY)
+// HAPUS ANTRIAN
 // ============================================================
 function hapusAntrian(nip) {
     const peserta = antrian.find(a => a.nip === nip);
     if (!peserta) return;
     if (!confirm(`Hapus antrian "${peserta.nama}"?`)) return;
-
     antrian = antrian.filter(a => a.nip !== nip);
     renderTabel();
     if (antrian.length === 0) document.getElementById('ticket').classList.remove('show');
@@ -1189,13 +873,10 @@ function hapusAntrian(nip) {
 }
 
 // ============================================================
-// RESET ALL ANTRIAN (ADMIN ONLY)
+// RESET ALL ANTRIAN
 // ============================================================
 function resetAll() {
-    if (antrian.length === 0) {
-        showToast('⚠️ Tidak ada antrian', 'info');
-        return;
-    }
+    if (antrian.length === 0) { showToast('⚠️ Tidak ada antrian', 'info'); return; }
     if (!confirm('Hapus semua antrian?')) return;
     antrian = [];
     nomorTerakhir = 0;
@@ -1207,21 +888,17 @@ function resetAll() {
 }
 
 // ============================================================
-// SAVE EXCEL (ADMIN ONLY)
+// SAVE EXCEL
 // ============================================================
 function saveExcel() {
-    if (antrian.length === 0) {
-        showToast('⚠️ Belum ada data antrian', 'error');
-        return;
-    }
+    if (antrian.length === 0) { showToast('⚠️ Belum ada data antrian', 'error'); return; }
     const dataForExcel = [['#', 'NIP', 'Nama', 'Bagian', 'Nomor Antrian']];
-    antrian.forEach((a, i) => dataForExcel.push([i + 1, a.nip, a.nama, a.bagian, a.nomor]));
-
+    antrian.forEach((a, i) => dataForExcel.push([i+1, a.nip, a.nama, a.bagian, a.nomor]));
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(dataForExcel);
     ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 }];
     XLSX.utils.book_append_sheet(wb, ws, "Antrian");
-    XLSX.writeFile(wb, `Antrian_KPJ_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.writeFile(wb, `Antrian_KPJ_${new Date().toISOString().slice(0,10)}.xlsx`);
     showToast('📥 File Excel berhasil didownload!', 'success');
 }
 
@@ -1237,20 +914,24 @@ function loadDariLocalStorage() {
     if (data) {
         try {
             const parsed = JSON.parse(data);
-            antrian = parsed.antrian || [];
-            nomorTerakhir = parsed.nomorTerakhir || 0;
-            renderTabel();
-            if (antrian.length > 0) {
-                const last = antrian[antrian.length - 1];
-                document.getElementById('nomorAntrian').textContent = last.nomor;
-                document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
-                const { tanggal, waktu } = formatTanggalWaktu();
-                document.getElementById('tanggalAmbil').textContent = tanggal;
-                document.getElementById('waktuAmbil').textContent = waktu;
-                document.getElementById('ticket').classList.add('show');
+            if (parsed.antrian && parsed.antrian.length > 0) {
+                antrian = parsed.antrian;
+                nomorTerakhir = parsed.nomorTerakhir || 0;
+                renderTabel();
+                if (antrian.length > 0) {
+                    const last = antrian[antrian.length - 1];
+                    document.getElementById('nomorAntrian').textContent = last.nomor;
+                    document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
+                    const { tanggal, waktu } = formatTanggalWaktu();
+                    document.getElementById('tanggalAmbil').textContent = tanggal;
+                    document.getElementById('waktuAmbil').textContent = waktu;
+                    document.getElementById('ticket').classList.add('show');
+                }
+                return true;
             }
         } catch (e) {}
     }
+    return false;
 }
 
 function simpanSuggestionKeLocalStorage() {
@@ -1272,45 +953,81 @@ function loadSuggestionDariLocalStorage() {
 }
 
 // ============================================================
-// PAGINATION (ADMIN)
-// ============================================================
-let currentPageAdmin = 1;
-const itemsPerPageAdmin = 10;
-
-// ============================================================
-// FIREBASE SYNC
+// FIREBASE SYNC (TANPA OVERWRITE)
 // ============================================================
 function syncToFirebase() {
     if (!firebaseEnabled || !database) return;
+    if (isSyncing) return;
+    isSyncing = true;
+    
     try {
-        const updates = {};
-        updates['antrianData/antrian'] = antrian;
-        updates['antrianData/nomorTerakhir'] = nomorTerakhir;
-        updates['antrianData/masterPeserta'] = masterPeserta;
-        updates['antrianData/lastUpdated'] = firebase.database.ServerValue.TIMESTAMP;
-        
-        database.ref().update(updates)
-            .then(() => {
-                const syncStatus = document.getElementById('syncStatus');
-                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
+        // 🔥 CEK DULU DATA DI FIREBASE
+        database.ref('antrianData').once('value')
+            .then((snapshot) => {
+                const fbData = snapshot.val();
+                const fbAntrian = (fbData && fbData.antrian) || [];
+                const fbTimestamp = (fbData && fbData.lastUpdated) || 0;
+                const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+                
+                // 🔥 JIKA FIREBASE LEBIH BARU, AMBIL DARI FIREBASE
+                if (fbAntrian.length > 0 && fbTimestamp > localTimestamp) {
+                    antrian = fbAntrian;
+                    nomorTerakhir = fbData.nomorTerakhir || antrian.length;
+                    if (fbData.masterPeserta && fbData.masterPeserta.length > 0) {
+                        masterPeserta = fbData.masterPeserta;
+                        simpanSuggestionKeLocalStorage();
+                        updateDatabaseStatus();
+                    }
+                    renderTabel();
+                    simpanKeLocalStorage();
+                    localStorage.setItem('antrianLastUpdated', fbTimestamp);
+                    console.log('📦 Firebase lebih baru, sync ke lokal');
+                    isSyncing = false;
+                    return;
+                }
+                
+                // 🔥 JIKA LOKAL LEBIH BARU ATAU FIREBASE KOSONG, SIMPAN KE FIREBASE
+                if (antrian.length > 0 && (fbAntrian.length === 0 || localTimestamp >= fbTimestamp)) {
+                    const updates = {};
+                    updates['antrianData/antrian'] = antrian;
+                    updates['antrianData/nomorTerakhir'] = nomorTerakhir;
+                    updates['antrianData/masterPeserta'] = masterPeserta;
+                    updates['antrianData/lastUpdated'] = Date.now();
+                    
+                    database.ref().update(updates)
+                        .then(() => {
+                            localStorage.setItem('antrianLastUpdated', Date.now());
+                            console.log('📦 LocalStorage lebih baru, sync ke Firebase');
+                        })
+                        .catch((err) => console.error('Sync error:', err))
+                        .finally(() => { isSyncing = false; });
+                } else {
+                    isSyncing = false;
+                }
             })
-            .catch((err) => {
-                console.error('Sync error:', err);
-            });
+            .catch(() => { isSyncing = false; });
     } catch (e) {
         console.error('Sync error:', e);
+        isSyncing = false;
     }
 }
 
+// ============================================================
+// LOAD FROM FIREBASE (TANPA OVERWRITE)
+// ============================================================
 function loadFromFirebase() {
     if (!firebaseEnabled || !database) return;
+    
     database.ref('antrianData').on('value', (snapshot) => {
+        if (isSyncing) return;
+        
         const data = snapshot.val();
-        if (data) {
-            const lastUpdated = data.lastUpdated || 0;
-            const localLastUpdated = localStorage.getItem('antrianLastUpdated') || 0;
+        if (data && data.antrian && data.antrian.length > 0) {
+            const fbTimestamp = data.lastUpdated || 0;
+            const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
             
-            if (lastUpdated > localLastUpdated) {
+            // 🔥 HANYA UPDATE JIKA FIREBASE LEBIH BARU
+            if (fbTimestamp > localTimestamp) {
                 antrian = data.antrian || [];
                 nomorTerakhir = data.nomorTerakhir || 0;
                 if (data.masterPeserta && data.masterPeserta.length > 0) {
@@ -1320,19 +1037,8 @@ function loadFromFirebase() {
                 }
                 renderTabel();
                 simpanKeLocalStorage();
-                localStorage.setItem('antrianLastUpdated', lastUpdated);
-                
-                if (antrian.length > 0) {
-                    const last = antrian[antrian.length - 1];
-                    document.getElementById('nomorAntrian').textContent = last.nomor;
-                    document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
-                    const { tanggal, waktu } = formatTanggalWaktu();
-                    document.getElementById('tanggalAmbil').textContent = tanggal;
-                    document.getElementById('waktuAmbil').textContent = waktu;
-                    document.getElementById('ticket').classList.add('show');
-                }
-                const syncStatus = document.getElementById('syncStatus');
-                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
+                localStorage.setItem('antrianLastUpdated', fbTimestamp);
+                console.log('📦 Firebase lebih baru, update lokal');
             }
         }
     }, (error) => {
@@ -1341,7 +1047,7 @@ function loadFromFirebase() {
 }
 
 // ============================================================
-// PASSWORD ADMIN (Disimpan di Firebase)
+// PASSWORD ADMIN
 // ============================================================
 let adminPassword = 'admin123';
 
@@ -1351,10 +1057,8 @@ function loadAdminPassword() {
         const data = snapshot.val();
         if (data) {
             adminPassword = data;
-            console.log('🔑 Password admin di-load dari Firebase');
         } else {
             database.ref('adminPassword').set(adminPassword);
-            console.log('🔑 Password default disimpan ke Firebase');
         }
     });
 }
@@ -1362,37 +1066,30 @@ function loadAdminPassword() {
 function ubahPasswordAdmin() {
     const oldPassword = prompt('🔒 Masukkan password lama:');
     if (oldPassword === null) return;
-    
     if (oldPassword !== adminPassword) {
         showToast('❌ Password lama salah!', 'error');
         return;
     }
-    
     const newPassword = prompt('🔑 Masukkan password baru (minimal 4 karakter):');
     if (newPassword === null) return;
     if (newPassword.trim().length < 4) {
         showToast('⚠️ Password minimal 4 karakter!', 'error');
         return;
     }
-    
     const confirmPassword = prompt('🔑 Konfirmasi password baru:');
     if (confirmPassword === null) return;
-    
     if (newPassword !== confirmPassword) {
         showToast('❌ Password tidak cocok!', 'error');
         return;
     }
-    
     if (!firebaseEnabled || !database) {
         showToast('⚠️ Firebase tidak terhubung!', 'error');
         return;
     }
-    
     database.ref('adminPassword').set(newPassword.trim())
         .then(() => {
             adminPassword = newPassword.trim();
             showToast('✅ Password berhasil diubah!', 'success');
-            console.log('🔑 Password admin diubah');
         })
         .catch((error) => {
             showToast('⚠️ Gagal menyimpan password: ' + error.message, 'error');
@@ -1405,15 +1102,20 @@ function ubahPasswordAdmin() {
 window.onload = function() {
     const hasData = loadSuggestionDariLocalStorage();
     if (!hasData) {
-        masterPeserta = DEFAULT_PESERTA;
-        simpanSuggestionKeLocalStorage();
+        if (typeof DEFAULT_PESERTA !== 'undefined') {
+            masterPeserta = DEFAULT_PESERTA;
+            simpanSuggestionKeLocalStorage();
+        }
     }
 
-    loadDariLocalStorage();
+    const hasAntrian = loadDariLocalStorage();
+    if (!hasAntrian) {
+        antrian = [];
+        nomorTerakhir = 0;
+    }
+    
     updateDatabaseStatus();
-
     updateJadwalUI();
-
     currentPageAdmin = 1;
     renderTabel();
 
@@ -1421,14 +1123,16 @@ window.onload = function() {
         loadFromFirebase();
         loadJadwalFromFirebase();
         loadAdminPassword();
+        // 🔥 SYNC SETIAP 30 DETIK
+        setInterval(() => {
+            if (!isSyncing) {
+                syncToFirebase();
+            }
+        }, 30000);
     }
 
     if (antrian.length === 0) {
         document.getElementById('inputNip').focus();
-    }
-
-    if (firebaseEnabled) {
-        setInterval(syncToFirebase, 30000);
     }
 };
 

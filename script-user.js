@@ -23,6 +23,10 @@ let antrian = [];
 let nomorTerakhir = 0;
 let selectedIndex = { nip: -1, nama: -1, bagian: -1 };
 let filteredData = { nip: [], nama: [], bagian: [] };
+let highlightedNip = null;
+let currentPage = 1;
+const itemsPerPage = 10;
+let isSyncing = false;
 
 // ============================================================
 // JADWAL OPERASIONAL
@@ -105,29 +109,22 @@ function cekJamOperasional() {
     if (!jadwalOperasional.aktif) {
         return { boleh: false, pesan: '📢 Sistem pengambilan antrian sedang ditutup oleh admin.' };
     }
-
     const now = new Date();
     const today = now.toISOString().split('T')[0];
-    
     if (today < jadwalOperasional.tanggalMulai || today > jadwalOperasional.tanggalSelesai) {
         const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
         const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
         return { boleh: false, pesan: `📢 Pengambilan antrian hanya ${tglMulai} - ${tglSelesai}.` };
     }
-
     const hariIni = now.getDay();
     let hariKerja = hariIni === 0 ? 7 : hariIni;
     if (!jadwalOperasional.hariKerja.includes(hariKerja)) {
         return { boleh: false, pesan: '📢 Hari ini bukan hari kerja. Cek jadwal operasional.' };
     }
-
-    const jamSekarang = now.getHours().toString().padStart(2, '0') + ':' + 
-                        now.getMinutes().toString().padStart(2, '0');
-    
+    const jamSekarang = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
     if (jamSekarang < jadwalOperasional.jamMulai || jamSekarang > jadwalOperasional.jamSelesai) {
         return { boleh: false, pesan: `📢 Pengambilan nomor antrian hanya ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}.` };
     }
-
     return { boleh: true, pesan: '✅ Sistem buka. Silakan ambil nomor antrian.' };
 }
 
@@ -135,31 +132,19 @@ function updateJadwalStatusUser() {
     const statusDiv = document.getElementById('jadwalStatus');
     const statusText = document.getElementById('jadwalStatusText');
     if (!statusDiv || !statusText) return;
-    
     const cek = cekJamOperasional();
     const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
     const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
     const hariMap = {1:'Senin',2:'Selasa',3:'Rabu',4:'Kamis',5:'Jumat',6:'Sabtu',7:'Minggu'};
     const hariKerja = jadwalOperasional.hariKerja.map(h => hariMap[h] || h).join(', ');
-    
     if (cek.boleh) {
         statusDiv.style.borderLeftColor = '#059669';
         statusDiv.style.background = '#ecfdf5';
-        statusText.innerHTML = `
-            🟢 <strong>Sistem Buka</strong> 
-            <span style="font-size:12px; color:#64748b; margin-left:6px;">
-                ${tglMulai} - ${tglSelesai} | ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai} | ${hariKerja}
-            </span>
-        `;
+        statusText.innerHTML = `🟢 <strong>Sistem Buka</strong> <span style="font-size:12px; color:#64748b; margin-left:6px;">${tglMulai} - ${tglSelesai} | ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai} | ${hariKerja}</span>`;
     } else {
         statusDiv.style.borderLeftColor = '#dc2626';
         statusDiv.style.background = '#fef2f2';
-        statusText.innerHTML = `
-            🔴 <strong>${cek.pesan}</strong>
-            <span style="font-size:12px; color:#64748b; margin-left:6px;">
-                ${tglMulai} - ${tglSelesai} | ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai} | ${hariKerja}
-            </span>
-        `;
+        statusText.innerHTML = `🔴 <strong>${cek.pesan}</strong> <span style="font-size:12px; color:#64748b; margin-left:6px;">${tglMulai} - ${tglSelesai} | ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai} | ${hariKerja}</span>`;
     }
 }
 
@@ -171,7 +156,6 @@ function filterAutocomplete(field, query) {
     const list = document.getElementById(listMap[field]);
     const inputId = 'input' + field.charAt(0).toUpperCase() + field.slice(1);
     const input = document.getElementById(inputId);
-
     if (!query || query.trim().length === 0) {
         list.classList.remove('show');
         list.innerHTML = '';
@@ -180,10 +164,8 @@ function filterAutocomplete(field, query) {
         selectedIndex[field] = -1;
         return;
     }
-
     const q = query.toLowerCase().trim();
     let data = [];
-
     if (field === 'nip') {
         data = masterPeserta.filter(p => p.nip && p.nip.toLowerCase().includes(q));
     } else if (field === 'nama') {
@@ -192,27 +174,22 @@ function filterAutocomplete(field, query) {
         const uniqueBagian = [...new Set(masterPeserta.map(p => p.bagian).filter(b => b && b.toLowerCase().includes(q)))];
         data = uniqueBagian.map(b => ({ bagian: b }));
     }
-
     if (data.length === 0 && masterPeserta.length === 0) {
         list.innerHTML = `<div class="autocomplete-empty">📂 Belum ada data database</div>`;
         list.classList.add('show');
         return;
     }
-
     if (data.length === 0) {
         list.innerHTML = `<div class="autocomplete-empty">😕 Tidak ditemukan di database</div>`;
         list.classList.add('show');
         return;
     }
-
     data = data.slice(0, 10);
     filteredData[field] = data;
     selectedIndex[field] = -1;
-
     let html = '';
     data.forEach((p, idx) => {
         let display = '', sub = '', badge = '';
-
         if (field === 'nip') {
             display = p.nip;
             sub = p.nama || '-';
@@ -221,9 +198,7 @@ function filterAutocomplete(field, query) {
             if (p.nip.toLowerCase().includes(qLower)) {
                 const start = p.nip.toLowerCase().indexOf(qLower);
                 const end = start + q.length;
-                display = p.nip.substring(0, start) +
-                    `<span class="highlight">${p.nip.substring(start, end)}</span>` +
-                    p.nip.substring(end);
+                display = p.nip.substring(0, start) + `<span class="highlight">${p.nip.substring(start, end)}</span>` + p.nip.substring(end);
             }
         } else if (field === 'nama') {
             display = p.nama;
@@ -233,9 +208,7 @@ function filterAutocomplete(field, query) {
             if (p.nama.toLowerCase().includes(qLower)) {
                 const start = p.nama.toLowerCase().indexOf(qLower);
                 const end = start + q.length;
-                display = p.nama.substring(0, start) +
-                    `<span class="highlight">${p.nama.substring(start, end)}</span>` +
-                    p.nama.substring(end);
+                display = p.nama.substring(0, start) + `<span class="highlight">${p.nama.substring(start, end)}</span>` + p.nama.substring(end);
             }
         } else if (field === 'bagian') {
             display = p.bagian;
@@ -245,23 +218,11 @@ function filterAutocomplete(field, query) {
             if (p.bagian.toLowerCase().includes(qLower)) {
                 const start = p.bagian.toLowerCase().indexOf(qLower);
                 const end = start + q.length;
-                display = p.bagian.substring(0, start) +
-                    `<span class="highlight">${p.bagian.substring(start, end)}</span>` +
-                    p.bagian.substring(end);
+                display = p.bagian.substring(0, start) + `<span class="highlight">${p.bagian.substring(start, end)}</span>` + p.bagian.substring(end);
             }
         }
-
-        html += `
-            <div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})">
-                <div>
-                    <div class="main">${display}</div>
-                    ${sub ? `<div class="sub">${sub}</div>` : ''}
-                </div>
-                ${badge ? `<span class="badge-info">${badge}</span>` : ''}
-            </div>
-        `;
+        html += `<div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})"><div><div class="main">${display}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>${badge ? `<span class="badge-info">${badge}</span>` : ''}</div>`;
     });
-
     list.innerHTML = html;
     list.classList.add('show');
     if (input) input.classList.add('highlight');
@@ -271,19 +232,16 @@ function selectPeserta(field, index) {
     const data = filteredData[field];
     if (!data || !data[index]) return;
     const p = data[index];
-
     if (field === 'nip') {
         document.getElementById('inputNip').value = p.nip;
         document.getElementById('inputNama').value = p.nama || '';
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
-    
     } else if (field === 'nama') {
         document.getElementById('inputNip').value = p.nip || '';
         document.getElementById('inputNama').value = p.nama;
         document.getElementById('inputBagian').value = p.bagian || '';
         closeAllLists();
-        
     } else if (field === 'bagian') {
         document.getElementById('inputBagian').value = p.bagian;
         closeAllLists();
@@ -296,15 +254,10 @@ function handleKeydown(field, e) {
     const listMap = { nip: 'listNip', nama: 'listNama', bagian: 'listBagian' };
     const list = document.getElementById(listMap[field]);
     const items = list.querySelectorAll('.autocomplete-item');
-
     if (!list.classList.contains('show')) {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            ambilAntrian();
-        }
+        if (e.key === 'Enter') { e.preventDefault(); ambilAntrian(); }
         return;
     }
-
     if (e.key === 'ArrowDown') {
         e.preventDefault();
         if (items.length > 0) {
@@ -369,51 +322,37 @@ function ambilAntrian() {
         showToast(cek.pesan, 'error');
         return;
     }
-
     const nip = document.getElementById('inputNip').value.trim();
     const nama = document.getElementById('inputNama').value.trim();
     const bagian = document.getElementById('inputBagian').value.trim();
-
     if (!nip || !nama || !bagian) {
         showToast('⚠️ NIP, Nama, dan Bagian harus diisi!', 'error');
         return;
     }
-
-    // 1. CEK APAKAH NIP TERDAFTAR DI MASTER PESERTA
     const peserta = masterPeserta.find(p => p.nip === nip);
     if (!peserta) {
         showToast('❌ NIP tidak terdaftar! Silakan hubungi admin.', 'error');
         clearForm();
         return;
     }
-
-    // 2. CEK FORMAT NIP - 11 DIGIT ANGKA
     if (!/^\d{11}$/.test(nip)) {
         showToast('⚠️ Format NIP salah! Harus 11 digit angka.', 'error');
         clearForm();
         return;
     }
-
-    // 3. CEK DOUBLE DI ANTRIAN (CEGAH DUPLIKAT)
     const existing = antrian.find(a => a.nip === nip);
     if (existing) {
         showToast(`⚠️ NIP "${nama}" sudah terdaftar dengan nomor ${existing.nomor}`, 'error');
         clearForm();
         return;
     }
-
-    // CEK DUPLIKAT NIP (di Firebase)
     if (firebaseEnabled && database) {
-        const nipRef = database.ref('antrianData/antrian');
-        nipRef.once('value', (snapshot) => {
-            const data = snapshot.val();
-            if (data) {
-                const exists = data.some(a => a.nip === nip);
-                if (exists) {
-                    showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
-                    clearForm();
-                    return;
-                }
+        database.ref('antrianData/antrian').once('value', (snapshot) => {
+            const data = snapshot.val() || [];
+            if (data.some(a => a.nip === nip)) {
+                showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
+                clearForm();
+                return;
             }
             prosesAmbilAntrian(nip, nama, bagian);
         }).catch(() => {
@@ -456,17 +395,21 @@ function prosesAmbilAntrian(nip, nama, bagian) {
 // ============================================================
 function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
     const data = { nip, nama, bagian, nomor: nomorBaru };
-
     database.ref('antrianData/antrian').once('value', (snapshot) => {
         let antrianData = snapshot.val() || [];
-        const exists = antrianData.some(a => a.nip === nip);
-        if (exists) {
-            showToast(`⚠️ NIP "${nama}" sudah terdaftar!`, 'error');
+        if (antrianData.some(a => a.nip === nip)) {
+            showToast('⚠️ NIP sudah terdaftar!', 'error');
             clearForm();
             return;
         }
         antrianData.push(data);
         database.ref('antrianData/antrian').set(antrianData)
+            .then(() => {
+                return database.ref('antrianData/nomorTerakhir').set(antrianData.length);
+            })
+            .then(() => {
+                return database.ref('antrianData/lastUpdated').set(Date.now());
+            })
             .then(() => {
                 antrian.push(data);
                 renderTabel();
@@ -517,12 +460,11 @@ function clearForm() {
 }
 
 // ============================================================
-// CEK ANTRIAN SAYA + HIGHLIGHT KUNING
+// CEK ANTRIAN SAYA
 // ============================================================
 function lihatAntrianSaya() {
     const nip = prompt('Masukkan NIP Anda:');
     if (!nip) return;
-    
     const data = antrian.find(a => a.nip === nip.trim());
     if (data) {
         document.getElementById('nomorAntrian').textContent = data.nomor;
@@ -531,7 +473,6 @@ function lihatAntrianSaya() {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-
         const index = antrian.findIndex(a => a.nip === nip.trim());
         if (index !== -1) {
             const page = Math.floor(index / itemsPerPage) + 1;
@@ -540,11 +481,7 @@ function lihatAntrianSaya() {
                 renderTabel();
             }
         }
-
-        setTimeout(() => {
-            highlightRow(nip.trim());
-        }, 200);
-
+        setTimeout(() => highlightRow(nip.trim()), 200);
         showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'success');
     } else {
         showToast('😕 NIP tidak ditemukan dalam antrian', 'info');
@@ -554,14 +491,10 @@ function lihatAntrianSaya() {
 function highlightRow(nip) {
     highlightedNip = nip;
     renderTabel();
-
     setTimeout(() => {
         const row = document.getElementById(`row-${nip}`);
-        if (row) {
-            row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 300);
-
     clearTimeout(window._highlightTimer);
     window._highlightTimer = setTimeout(() => {
         highlightedNip = null;
@@ -570,7 +503,7 @@ function highlightRow(nip) {
 }
 
 // ============================================================
-// KLIK BARIS TABEL → TAMPILKAN NOMOR
+// KLIK BARIS TABEL
 // ============================================================
 function klikAntrian(nip) {
     const data = antrian.find(a => a.nip === nip);
@@ -581,7 +514,6 @@ function klikAntrian(nip) {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-
         highlightRow(nip);
         showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
     }
@@ -596,31 +528,26 @@ function downloadTicketImage() {
         showToast('⚠️ Belum ada nomor antrian untuk diunduh!', 'error');
         return;
     }
-
-    html2canvas(ticket, {
-        scale: 4,
-        backgroundColor: '#ffffff',
-        allowTaint: false,
-        useCORS: true
-    }).then(canvas => {
-        const link = document.createElement('a');
-        link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
-        link.href = canvas.toDataURL('image/png', 1.0);
-        link.click();
-        showToast('📥 Tiket berhasil diunduh!', 'success');
-    }).catch(err => {
-        console.error(err);
-        showToast('⚠️ Gagal mengunduh gambar', 'error');
-    });
+    showToast('⏳ Sedang memproses gambar...', 'info');
+    html2canvas(ticket, { scale: 4, backgroundColor: '#ffffff', allowTaint: false, useCORS: true })
+        .then(canvas => {
+            const link = document.createElement('a');
+            link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+            link.click();
+            showToast('📥 Tiket berhasil diunduh!', 'success');
+        })
+        .catch(err => {
+            console.error(err);
+            showToast('⚠️ Gagal mengunduh gambar', 'error');
+        });
 }
 
 // ============================================================
-// RENDER TABEL (USER - Tanpa Aksi Hapus)
+// RENDER TABEL
 // ============================================================
-let highlightedNip = null;
-
 function renderTabel() {
-    // 🔥 AUTO RESET NOMOR SEBELUM RENDER
+    // 🔥 AUTO RESET NOMOR - PASTIKAN URUT!
     if (antrian.length > 0) {
         antrian.forEach((a, idx) => {
             a.nomor = String(idx + 1).padStart(3, '0');
@@ -658,19 +585,15 @@ function renderTabel() {
     pageData.forEach((a, idx) => {
         const rowId = `row-${a.nip}`;
         const isHighlighted = (highlightedNip === a.nip);
-        html += `
-            <tr id="${rowId}" onclick="klikAntrian('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
-                <td>${start + idx + 1}</td>
-                <td>${a.nip}</td>
-                <td>${a.nama}</td>
-                <td>${a.bagian}</td>
-                <td class="nomor-cell">${a.nomor}</td>
-            </tr>
-        `;
+        html += `<tr id="${rowId}" onclick="klikAntrian('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
+            <td>${start + idx + 1}</td>
+            <td>${a.nip}</td>
+            <td>${a.nama}</td>
+            <td>${a.bagian}</td>
+            <td class="nomor-cell">${a.nomor}</td>
+        </tr>`;
     });
     tbody.innerHTML = html;
-
-    // 🔥 SIMPAN SETELAH RENDER
     simpanKeLocalStorage();
 }
 
@@ -681,29 +604,29 @@ function simpanKeLocalStorage() {
     localStorage.setItem('antrianSembako', JSON.stringify({ antrian, nomorTerakhir }));
 }
 
-let currentPage = 1;
-const itemsPerPage = 10;
-let filteredAntrian = [];
-
 function loadDariLocalStorage() {
     const data = localStorage.getItem('antrianSembako');
     if (data) {
         try {
             const parsed = JSON.parse(data);
-            antrian = parsed.antrian || [];
-            nomorTerakhir = parsed.nomorTerakhir || 0;
-            renderTabel();
-            if (antrian.length > 0) {
-                const last = antrian[antrian.length - 1];
-                document.getElementById('nomorAntrian').textContent = last.nomor;
-                document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
-                const { tanggal, waktu } = formatTanggalWaktu();
-                document.getElementById('tanggalAmbil').textContent = tanggal;
-                document.getElementById('waktuAmbil').textContent = waktu;
-                document.getElementById('ticket').classList.add('show');
+            if (parsed.antrian && parsed.antrian.length > 0) {
+                antrian = parsed.antrian;
+                nomorTerakhir = parsed.nomorTerakhir || 0;
+                renderTabel();
+                if (antrian.length > 0) {
+                    const last = antrian[antrian.length - 1];
+                    document.getElementById('nomorAntrian').textContent = last.nomor;
+                    document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
+                    const { tanggal, waktu } = formatTanggalWaktu();
+                    document.getElementById('tanggalAmbil').textContent = tanggal;
+                    document.getElementById('waktuAmbil').textContent = waktu;
+                    document.getElementById('ticket').classList.add('show');
+                }
+                return true;
             }
         } catch (e) {}
     }
+    return false;
 }
 
 function simpanSuggestionKeLocalStorage() {
@@ -725,39 +648,74 @@ function loadSuggestionDariLocalStorage() {
 }
 
 // ============================================================
-// FIREBASE SYNC
+// FIREBASE SYNC (TANPA OVERWRITE)
 // ============================================================
 function syncToFirebase() {
     if (!firebaseEnabled || !database) return;
+    if (isSyncing) return;
+    isSyncing = true;
+    
     try {
-        const updates = {};
-        updates['antrianData/antrian'] = antrian;
-        updates['antrianData/nomorTerakhir'] = nomorTerakhir;
-        updates['antrianData/masterPeserta'] = masterPeserta;
-        updates['antrianData/lastUpdated'] = firebase.database.ServerValue.TIMESTAMP;
-        
-        database.ref().update(updates)
-            .then(() => {
-                const syncStatus = document.getElementById('syncStatus');
-                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
+        database.ref('antrianData').once('value')
+            .then((snapshot) => {
+                const fbData = snapshot.val();
+                const fbAntrian = (fbData && fbData.antrian) || [];
+                const fbTimestamp = (fbData && fbData.lastUpdated) || 0;
+                const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+                
+                if (fbAntrian.length > 0 && fbTimestamp > localTimestamp) {
+                    antrian = fbAntrian;
+                    nomorTerakhir = fbData.nomorTerakhir || antrian.length;
+                    if (fbData.masterPeserta && fbData.masterPeserta.length > 0) {
+                        masterPeserta = fbData.masterPeserta;
+                        simpanSuggestionKeLocalStorage();
+                        updateDatabaseStatus();
+                    }
+                    renderTabel();
+                    simpanKeLocalStorage();
+                    localStorage.setItem('antrianLastUpdated', fbTimestamp);
+                    console.log('📦 Firebase lebih baru, sync ke lokal');
+                    isSyncing = false;
+                    return;
+                }
+                
+                if (antrian.length > 0 && (fbAntrian.length === 0 || localTimestamp >= fbTimestamp)) {
+                    const updates = {};
+                    updates['antrianData/antrian'] = antrian;
+                    updates['antrianData/nomorTerakhir'] = nomorTerakhir;
+                    updates['antrianData/masterPeserta'] = masterPeserta;
+                    updates['antrianData/lastUpdated'] = Date.now();
+                    
+                    database.ref().update(updates)
+                        .then(() => {
+                            localStorage.setItem('antrianLastUpdated', Date.now());
+                            console.log('📦 LocalStorage lebih baru, sync ke Firebase');
+                        })
+                        .catch((err) => console.error('Sync error:', err))
+                        .finally(() => { isSyncing = false; });
+                } else {
+                    isSyncing = false;
+                }
             })
-            .catch((err) => {
-                console.error('Sync error:', err);
-            });
+            .catch(() => { isSyncing = false; });
     } catch (e) {
         console.error('Sync error:', e);
+        isSyncing = false;
     }
 }
 
 function loadFromFirebase() {
     if (!firebaseEnabled || !database) return;
+    
     database.ref('antrianData').on('value', (snapshot) => {
+        if (isSyncing) return;
+        
         const data = snapshot.val();
-        if (data) {
-            const lastUpdated = data.lastUpdated || 0;
-            const localLastUpdated = localStorage.getItem('antrianLastUpdated') || 0;
+        if (data && data.antrian && data.antrian.length > 0) {
+            const fbTimestamp = data.lastUpdated || 0;
+            const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
             
-            if (lastUpdated > localLastUpdated) {
+            if (fbTimestamp > localTimestamp) {
                 antrian = data.antrian || [];
                 nomorTerakhir = data.nomorTerakhir || 0;
                 if (data.masterPeserta && data.masterPeserta.length > 0) {
@@ -767,19 +725,8 @@ function loadFromFirebase() {
                 }
                 renderTabel();
                 simpanKeLocalStorage();
-                localStorage.setItem('antrianLastUpdated', lastUpdated);
-                
-                if (antrian.length > 0) {
-                    const last = antrian[antrian.length - 1];
-                    document.getElementById('nomorAntrian').textContent = last.nomor;
-                    document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
-                    const { tanggal, waktu } = formatTanggalWaktu();
-                    document.getElementById('tanggalAmbil').textContent = tanggal;
-                    document.getElementById('waktuAmbil').textContent = waktu;
-                    document.getElementById('ticket').classList.add('show');
-                }
-                const syncStatus = document.getElementById('syncStatus');
-                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
+                localStorage.setItem('antrianLastUpdated', fbTimestamp);
+                console.log('📦 Firebase lebih baru, update lokal');
             }
         }
     }, (error) => {
@@ -796,13 +743,15 @@ window.onload = function() {
         if (typeof DEFAULT_PESERTA !== 'undefined') {
             masterPeserta = DEFAULT_PESERTA;
             simpanSuggestionKeLocalStorage();
-        } else {
-            console.error('❌ DEFAULT_PESERTA tidak ditemukan!');
-            showToast('⚠️ Data peserta tidak ditemukan!', 'error');
         }
     }
 
-    loadDariLocalStorage();
+    const hasAntrian = loadDariLocalStorage();
+    if (!hasAntrian) {
+        antrian = [];
+        nomorTerakhir = 0;
+    }
+    
     updateDatabaseStatus();
     currentPage = 1;
     renderTabel();
@@ -811,6 +760,11 @@ window.onload = function() {
         loadFromFirebase();
         loadJadwalFromFirebase();
         setTimeout(updateJadwalStatusUser, 500);
+        setInterval(() => {
+            if (!isSyncing) {
+                syncToFirebase();
+            }
+        }, 30000);
     }
 
     if (antrian.length === 0) {
@@ -818,7 +772,6 @@ window.onload = function() {
     }
 
     if (firebaseEnabled) {
-        setInterval(syncToFirebase, 30000);
         setInterval(updateJadwalStatusUser, 60000);
     }
 };
