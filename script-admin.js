@@ -251,8 +251,7 @@ function filterAutocomplete(field, query) {
         data = uniqueBagian.map(b => ({ bagian: b }));
     }
     if (data.length === 0) {
-        list.innerHTML = `<div class="autocomplete-empty">😕 Tidak ditemukan</div>`;
-        list.classList.add('show');
+        list.classList.remove('show');
         return;
     }
     data = data.slice(0, 10);
@@ -265,32 +264,14 @@ function filterAutocomplete(field, query) {
             display = p.nip;
             sub = p.nama || '-';
             badge = p.bagian || 'Karyawan';
-            const qLower = q.toLowerCase();
-            if (p.nip.toLowerCase().includes(qLower)) {
-                const start = p.nip.toLowerCase().indexOf(qLower);
-                const end = start + q.length;
-                display = p.nip.substring(0, start) + `<span class="highlight">${p.nip.substring(start, end)}</span>` + p.nip.substring(end);
-            }
         } else if (field === 'nama') {
             display = p.nama;
             sub = p.nip || '-';
             badge = p.bagian || 'Karyawan';
-            const qLower = q.toLowerCase();
-            if (p.nama.toLowerCase().includes(qLower)) {
-                const start = p.nama.toLowerCase().indexOf(qLower);
-                const end = start + q.length;
-                display = p.nama.substring(0, start) + `<span class="highlight">${p.nama.substring(start, end)}</span>` + p.nama.substring(end);
-            }
-        } else if (field === 'bagian') {
+        } else {
             display = p.bagian;
             sub = 'Klik untuk memilih';
             badge = '';
-            const qLower = q.toLowerCase();
-            if (p.bagian.toLowerCase().includes(qLower)) {
-                const start = p.bagian.toLowerCase().indexOf(qLower);
-                const end = start + q.length;
-                display = p.bagian.substring(0, start) + `<span class="highlight">${p.bagian.substring(start, end)}</span>` + p.bagian.substring(end);
-            }
         }
         html += `<div class="autocomplete-item" data-index="${idx}" onclick="selectPeserta('${field}', ${idx})"><div><div class="main">${display}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>${badge ? `<span class="badge-info">${badge}</span>` : ''}</div>`;
     });
@@ -384,7 +365,7 @@ document.addEventListener('click', function(e) {
 });
 
 // ============================================================
-// AMBIL ANTRIAN (ADMIN) - DENGAN VALIDASI NAMA + NIP
+// AMBIL ANTRIAN - DENGAN VALIDASI OTOMATIS
 // ============================================================
 function ambilAntrian() {
     const cek = cekJamOperasional();
@@ -402,49 +383,42 @@ function ambilAntrian() {
         return;
     }
 
-    // 🔥 1. CEK NIP TERDAFTAR DI MASTER
     const peserta = masterPeserta.find(p => p.nip === nip);
     if (!peserta) {
-        showToast('❌ NIP tidak terdaftar! Hubungi admin.', 'error');
+        showToast('❌ NIP tidak terdaftar!', 'error');
         clearForm();
         return;
     }
 
-    // 🔥 2. CEK FORMAT NIP (11 digit)
     if (!/^\d{11}$/.test(nip)) {
-        showToast('⚠️ Format NIP salah! Harus 11 digit angka.', 'error');
+        showToast('⚠️ Format NIP salah! Harus 11 digit.', 'error');
         clearForm();
         return;
     }
 
-    // 🔥 3. CEK DUPLIKAT NAMA (case-insensitive) - CEGAH NAMA DOUBLE
     const existingName = antrian.find(a => a.nama.toLowerCase() === nama.toLowerCase());
     if (existingName) {
-        showToast(`⚠️ Nama "${nama}" sudah terdaftar dengan nomor ${existingName.nomor} (NIP: ${existingName.nip})`, 'error');
+        showToast(`⚠️ Nama "${nama}" sudah terdaftar dengan nomor ${existingName.nomor}`, 'error');
         clearForm();
         return;
     }
 
-    // 🔥 4. CEK DUPLIKAT NIP (CEGAH NIP DOUBLE)
     const existingNip = antrian.find(a => a.nip === nip);
     if (existingNip) {
-        showToast(`⚠️ NIP "${nip}" sudah terdaftar untuk ${existingNip.nama} (Nomor: ${existingNip.nomor})`, 'error');
+        showToast(`⚠️ NIP "${nip}" sudah terdaftar untuk ${existingNip.nama}`, 'error');
         clearForm();
         return;
     }
 
-    // 🔥 5. CEK DI FIREBASE (untuk multi-user)
     if (firebaseEnabled && database) {
         database.ref('antrianData/antrian').once('value', (snapshot) => {
             const data = snapshot.val() || [];
-            const fbNameExists = data.some(a => a.nama.toLowerCase() === nama.toLowerCase());
-            if (fbNameExists) {
+            if (data.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
                 showToast(`⚠️ Nama "${nama}" sudah terdaftar di sistem!`, 'error');
                 clearForm();
                 return;
             }
-            const fbNipExists = data.some(a => a.nip === nip);
-            if (fbNipExists) {
+            if (data.some(a => a.nip === nip)) {
                 showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
                 clearForm();
                 return;
@@ -458,49 +432,34 @@ function ambilAntrian() {
     }
 }
 
-// ============================================================
-// PROSES AMBIL ANTRIAN
-// ============================================================
 function prosesAmbilAntrian(nip, nama, bagian) {
     const data = { nip, nama, bagian };
     antrian.push(data);
-    
     antrian.forEach((a, idx) => {
         a.nomor = String(idx + 1).padStart(3, '0');
     });
     nomorTerakhir = antrian.length;
-    
     renderTabel();
     simpanKeLocalStorage();
     
     if (firebaseEnabled && database) {
         database.ref('antrianData/antrian').once('value', (snapshot) => {
             let antrianData = snapshot.val() || [];
-            
-            const nameExists = antrianData.some(a => a.nama.toLowerCase() === nama.toLowerCase());
-            const nipExists = antrianData.some(a => a.nip === nip);
-            
-            if (nameExists || nipExists) {
+            if (antrianData.some(a => a.nama.toLowerCase() === nama.toLowerCase()) ||
+                antrianData.some(a => a.nip === nip)) {
                 antrian = antrian.filter(a => a.nip !== nip);
                 renderTabel();
-                simpanKeLocalStorage();
-                showToast('⚠️ Data duplikat terdeteksi!', 'error');
+                showToast('⚠️ Duplikat terdeteksi!', 'error');
                 return;
             }
-            
             antrianData.push({ nip, nama, bagian, nomor: String(antrianData.length + 1).padStart(3, '0') });
             antrianData.forEach((a, idx) => {
                 a.nomor = String(idx + 1).padStart(3, '0');
             });
-            
             database.ref('antrianData/antrian').set(antrianData)
                 .then(() => {
-                    return database.ref('antrianData/nomorTerakhir').set(antrianData.length);
-                })
-                .then(() => {
-                    return database.ref('antrianData/lastUpdated').set(Date.now());
-                })
-                .then(() => {
+                    database.ref('antrianData/nomorTerakhir').set(antrianData.length);
+                    database.ref('antrianData/lastUpdated').set(Date.now());
                     const nomorBaru = String(antrianData.length).padStart(3, '0');
                     document.getElementById('nomorAntrian').textContent = nomorBaru;
                     document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
@@ -511,13 +470,10 @@ function prosesAmbilAntrian(nip, nama, bagian) {
                     clearForm();
                     showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
                 })
-                .catch((err) => {
-                    showToast('⚠️ Gagal menyimpan ke Firebase', 'error');
+                .catch(err => {
+                    showToast('⚠️ Gagal simpan ke Firebase', 'error');
                     console.error(err);
                 });
-        }).catch((err) => {
-            showToast('⚠️ Gagal koneksi ke Firebase', 'error');
-            console.error(err);
         });
     } else {
         const nomorBaru = String(antrian.length).padStart(3, '0');
@@ -532,9 +488,6 @@ function prosesAmbilAntrian(nip, nama, bagian) {
     }
 }
 
-// ============================================================
-// CLEAR FORM
-// ============================================================
 function clearForm() {
     document.getElementById('inputNip').value = '';
     document.getElementById('inputNama').value = '';
@@ -544,22 +497,80 @@ function clearForm() {
 }
 
 // ============================================================
-// HIGHLIGHT ADMIN
+// RENDER TABEL - AUTO CLEAN + AUTO RESET
 // ============================================================
-function highlightRowAdmin(nip) {
-    highlightedNipAdmin = nip;
-    renderTabel();
-    setTimeout(() => {
-        const row = document.getElementById(`row-admin-${nip}`);
-        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-    clearTimeout(window._highlightTimerAdmin);
-    window._highlightTimerAdmin = setTimeout(() => {
-        highlightedNipAdmin = null;
-        renderTabel();
-    }, 15000);
+function renderTabel() {
+    // 🔥 AUTO CLEAN DUPLIKAT
+    if (antrian.length > 1) {
+        const seenName = new Set();
+        const seenNip = new Set();
+        const cleanData = [];
+        antrian.forEach(a => {
+            const nameKey = (a.nama || '').toLowerCase();
+            const nipKey = a.nip || '';
+            if (!seenNip.has(nipKey) && !seenName.has(nameKey)) {
+                seenNip.add(nipKey);
+                seenName.add(nameKey);
+                cleanData.push(a);
+            }
+        });
+        if (cleanData.length !== antrian.length) {
+            antrian = cleanData;
+            console.log('🧹 Duplikat otomatis dibersihkan!');
+        }
+    }
+    
+    // 🔥 AUTO RESET NOMOR
+    if (antrian.length > 0) {
+        antrian.forEach((a, idx) => {
+            a.nomor = String(idx + 1).padStart(3, '0');
+        });
+        nomorTerakhir = antrian.length;
+    }
+
+    const tbody = document.getElementById('tbodyAntrian');
+    const count = document.getElementById('countAntrian');
+    const info = document.getElementById('infoAntrianAdmin');
+
+    const totalItems = antrian.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPageAdmin) || 1;
+    if (currentPageAdmin > totalPages) currentPageAdmin = totalPages;
+    if (currentPageAdmin < 1) currentPageAdmin = 1;
+
+    const start = (currentPageAdmin - 1) * itemsPerPageAdmin;
+    const end = Math.min(start + itemsPerPageAdmin, totalItems);
+    const pageData = antrian.slice(start, end);
+
+    count.textContent = totalItems + ' antrian';
+    if (info) info.textContent = `Menampilkan ${totalItems === 0 ? 0 : start+1} - ${end} dari ${totalItems} antrian`;
+
+    document.getElementById('prevPageAdminBtn').disabled = (currentPageAdmin === 1 || totalItems === 0);
+    document.getElementById('nextPageAdminBtn').disabled = (currentPageAdmin === totalPages || totalItems === 0);
+
+    if (totalItems === 0) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>`;
+        return;
+    }
+
+    let html = '';
+    pageData.forEach((a) => {
+        const isHighlighted = (highlightedNipAdmin === a.nip);
+        html += `<tr id="row-admin-${a.nip}" onclick="klikAntrianAdmin('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
+            <td>${a.nomor}</td>
+            <td>${a.nip}</td>
+            <td>${a.nama}</td>
+            <td>${a.bagian}</td>
+            <td class="nomor-cell">${a.nomor}</td>
+            <td><button class="btn-delete" onclick="event.stopPropagation(); hapusAntrian('${a.nip}')" title="Hapus"><i class="fas fa-trash-alt"></i></button></td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+    simpanKeLocalStorage();
 }
 
+// ============================================================
+// FUNGSI LAINNYA
+// ============================================================
 function klikAntrianAdmin(nip) {
     const data = antrian.find(a => a.nip === nip);
     if (data) {
@@ -569,14 +580,16 @@ function klikAntrianAdmin(nip) {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-        highlightRowAdmin(nip);
-        showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
+        highlightedNipAdmin = nip;
+        renderTabel();
+        setTimeout(() => {
+            const row = document.getElementById(`row-admin-${nip}`);
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+        showToast(`🎫 Nomor ${data.nomor} untuk ${data.nama}`, 'info');
     }
 }
 
-// ============================================================
-// CEK ANTRIAN SAYA
-// ============================================================
 function lihatAntrianSaya() {
     const nama = prompt('Masukkan NAMA Anda:');
     if (!nama) return;
@@ -588,48 +601,53 @@ function lihatAntrianSaya() {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-        const index = antrian.findIndex(a => a.nip === data.nip);
-        if (index !== -1) {
-            const page = Math.floor(index / itemsPerPageAdmin) + 1;
-            if (currentPageAdmin !== page) {
-                currentPageAdmin = page;
-                renderTabel();
-            }
-        }
-        setTimeout(() => highlightRowAdmin(data.nip), 200);
+        highlightedNipAdmin = data.nip;
+        renderTabel();
+        setTimeout(() => {
+            const row = document.getElementById(`row-admin-${data.nip}`);
+            if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
         showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
     } else {
-        showToast('😕 Nama tidak ditemukan dalam antrian', 'info');
+        showToast('😕 Nama tidak ditemukan', 'info');
     }
 }
 
-// ============================================================
-// DOWNLOAD TIKET
-// ============================================================
-function downloadTicketImageAdmin() {
-    const ticket = document.getElementById('ticket');
-    if (!ticket.classList.contains('show')) {
-        showToast('⚠️ Belum ada nomor antrian untuk diunduh!', 'error');
+function hapusAntrian(nip) {
+    const items = antrian.filter(a => a.nip === nip);
+    if (items.length === 0) { showToast('⚠️ Data tidak ditemukan', 'error'); return; }
+    if (items.length > 1) {
+        let msg = '⚠️ Ada ' + items.length + ' data dengan NIP yang sama:\n\n';
+        items.forEach((a, idx) => { msg += `${idx+1}. ${a.nama} - ${a.bagian} (${a.nomor})\n`; });
+        msg += '\nMasukkan nomor urut yang ingin dihapus (0=batal):';
+        const pilihan = prompt(msg);
+        if (pilihan === null || pilihan === '0') return;
+        const idx = parseInt(pilihan) - 1;
+        if (isNaN(idx) || idx < 0 || idx >= items.length) {
+            showToast('⚠️ Pilihan tidak valid!', 'error');
+            return;
+        }
+        const globalIndex = antrian.indexOf(items[idx]);
+        if (globalIndex !== -1) {
+            const namaPeserta = antrian[globalIndex].nama;
+            antrian.splice(globalIndex, 1);
+            renderTabel();
+            simpanKeLocalStorage();
+            syncToFirebase();
+            showToast(`🗑️ Antrian "${namaPeserta}" dihapus`, 'info');
+        }
         return;
     }
-    showToast('⏳ Sedang memproses gambar...', 'info');
-    html2canvas(ticket, { scale: 4, backgroundColor: '#ffffff', allowTaint: false, useCORS: true, logging: false })
-        .then(canvas => {
-            const link = document.createElement('a');
-            link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
-            link.href = canvas.toDataURL('image/png', 1.0);
-            link.click();
-            showToast('📥 Tiket berhasil diunduh!', 'success');
-        })
-        .catch(err => {
-            console.error(err);
-            showToast('⚠️ Gagal mengunduh gambar', 'error');
-        });
+    const peserta = items[0];
+    if (!confirm(`Hapus antrian "${peserta.nama}"?`)) return;
+    antrian = antrian.filter(a => a.nip !== nip);
+    renderTabel();
+    if (antrian.length === 0) document.getElementById('ticket').classList.remove('show');
+    simpanKeLocalStorage();
+    syncToFirebase();
+    showToast(`🗑️ Antrian "${peserta.nama}" dihapus`, 'info');
 }
 
-// ============================================================
-// TAMBAH PESERTA
-// ============================================================
 function tambahPeserta() {
     const nip = prompt('Masukkan NIP:');
     if (nip === null) return;
@@ -649,142 +667,69 @@ function tambahPeserta() {
     showToast(`✅ Peserta "${nama.trim()}" ditambahkan`, 'success');
 }
 
-// ============================================================
-// IMPORT DATA
-// ============================================================
-function importData(event) {
-    const file = event.target.files[0];
-    if (!file) { showToast('⚠️ Pilih file terlebih dahulu!', 'error'); return; }
-    const ext = file.name.split('.').pop().toLowerCase();
-    if (!['xlsx', 'xls', 'csv'].includes(ext)) {
-        showToast('⚠️ Format file harus .xlsx, .xls, atau .csv', 'error');
+function downloadTicketImageAdmin() {
+    const ticket = document.getElementById('ticket');
+    if (!ticket.classList.contains('show')) {
+        showToast('⚠️ Belum ada tiket', 'error');
         return;
     }
+    showToast('⏳ Memproses...', 'info');
+    html2canvas(ticket, { scale: 4, backgroundColor: '#ffffff' })
+        .then(canvas => {
+            const link = document.createElement('a');
+            link.download = `Tiket_${document.getElementById('nomorAntrian').textContent}.png`;
+            link.href = canvas.toDataURL('image/png', 1.0);
+            link.click();
+            showToast('📥 Tiket diunduh!', 'success');
+        })
+        .catch(err => {
+            showToast('⚠️ Gagal unduh', 'error');
+            console.error(err);
+        });
+}
+
+function importData(event) {
+    const file = event.target.files[0];
+    if (!file) { showToast('⚠️ Pilih file!', 'error'); return; }
     const reader = new FileReader();
     reader.onload = function(e) {
         try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' });
-            let headerRowIndex = -1, dataStartIndex = -1;
-            for (let i = 0; i < jsonData.length; i++) {
-                const row = jsonData[i];
-                if (!row || row.length === 0) continue;
-                const rowStr = row.join(' ').toUpperCase();
-                if (rowStr.includes('NO NIP') || rowStr.includes('NIP') || rowStr.includes('NAMA')) {
-                    headerRowIndex = i;
-                    dataStartIndex = i + 1;
-                    break;
-                }
-            }
-            if (headerRowIndex === -1 || dataStartIndex === -1) {
-                showToast('⚠️ Tidak menemukan header (NO NIP / NAMA / BAGIAN)', 'error');
-                return;
-            }
-            const headerRow = jsonData[headerRowIndex];
-            const headerMap = {};
-            headerRow.forEach((col, idx) => {
-                const colStr = String(col).toUpperCase().trim();
-                if (colStr.includes('NIP') || colStr.includes('NO')) headerMap['nip'] = idx;
-                else if (colStr.includes('NAMA')) headerMap['nama'] = idx;
-                else if (colStr.includes('BAGIAN') || colStr.includes('DEPART')) headerMap['bagian'] = idx;
-            });
-            const dataRows = jsonData.slice(dataStartIndex);
-            const validRows = dataRows.filter(row => {
-                const nip = row[headerMap['nip']] || '';
-                const nama = row[headerMap['nama']] || '';
-                return String(nip).trim() && String(nama).trim();
-            });
-            if (validRows.length === 0) {
-                showToast('⚠️ Tidak ada data valid di Excel!', 'error');
-                return;
-            }
-            let preview = `📊 ${validRows.length} data ditemukan\n\n📌 Header: ${headerRow.join(' | ')}\n\n📌 3 Data Pertama:\n`;
-            validRows.slice(0, 3).forEach((row, i) => {
-                const nip = row[headerMap['nip']] || '';
-                const nama = row[headerMap['nama']] || '';
-                const bagian = row[headerMap['bagian']] || 'Karyawan';
-                preview += `${i+1}. ${nip} | ${nama} | ${bagian}\n`;
-            });
-            if (!confirm(`${preview}\n\nLanjutkan import?`)) { event.target.value = ''; return; }
-            let imported = 0, duplicate = 0;
-            validRows.forEach(row => {
-                const nip = String(row[headerMap['nip']] || '').trim();
-                const nama = String(row[headerMap['nama']] || '').trim();
-                const bagian = String(row[headerMap['bagian']] || 'Karyawan').trim();
-                if (nip && nama) {
-                    if (!masterPeserta.some(p => p.nip === nip)) {
-                        masterPeserta.push({ nip, nama, bagian: bagian || 'Karyawan' });
-                        imported++;
-                    } else {
-                        duplicate++;
-                    }
+            const workbook = XLSX.read(e.target.result, { type: 'array' });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(sheet);
+            let imported = 0;
+            json.forEach(row => {
+                const nip = String(row['NO NIP'] || row['NIP'] || '').trim();
+                const nama = String(row['NAMA'] || row['Nama'] || '').trim();
+                const bagian = String(row['BAGIAN'] || row['Bagian'] || 'Karyawan').trim();
+                if (nip && nama && !masterPeserta.some(p => p.nip === nip)) {
+                    masterPeserta.push({ nip, nama, bagian });
+                    imported++;
                 }
             });
             simpanSuggestionKeLocalStorage();
             syncToFirebase();
             updateDatabaseStatus();
-            renderTabel();
-            event.target.value = '';
-            let message = `✅ Import ${imported} peserta`;
-            if (duplicate > 0) message += `, ${duplicate} duplikat diabaikan`;
-            showToast(message, imported > 0 ? 'success' : 'info');
-        } catch (error) {
-            showToast('⚠️ Gagal membaca file: ' + error.message, 'error');
-            event.target.value = '';
+            showToast(`✅ Import ${imported} peserta`, 'success');
+        } catch (err) {
+            showToast('⚠️ Gagal import: ' + err.message, 'error');
         }
     };
     reader.readAsArrayBuffer(file);
 }
 
-// ============================================================
-// LIHAT DATABASE
-// ============================================================
 function lihatDatabase() {
     if (masterPeserta.length === 0) {
         showToast('📂 Belum ada database', 'info');
         return;
     }
-    const modal = document.createElement('div');
-    modal.style.cssText = `position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); display:flex; justify-content:center; align-items:center; z-index:9999; padding:16px; animation:fadeIn 0.3s ease; -webkit-overflow-scrolling:touch;`;
-    const content = document.createElement('div');
-    content.style.cssText = `background:white; border-radius:16px; padding:20px 16px; max-width:600px; width:100%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 20px 60px rgba(0,0,0,0.3); position:relative;`;
-    const header = document.createElement('div');
-    header.style.cssText = `display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding-bottom:12px; border-bottom:2px solid #e8edf5; flex-shrink:0;`;
-    header.innerHTML = `<h3 style="margin:0; color:#1a2a4a; font-size:16px;"><i class="fas fa-database" style="color:#2a5298;"></i> Database Peserta (${masterPeserta.length})</h3>`;
-    const closeBtn = document.createElement('button');
-    closeBtn.innerHTML = '&times;';
-    closeBtn.style.cssText = `background:none; border:none; font-size:28px; color:#94a3b8; cursor:pointer; padding:0 8px; line-height:1;`;
-    closeBtn.onclick = function() { modal.remove(); };
-    header.appendChild(closeBtn);
-    const body = document.createElement('div');
-    body.style.cssText = `overflow-y:auto; flex:1; padding-right:4px; -webkit-overflow-scrolling:touch;`;
-    let tableHtml = `<table style="width:100%; border-collapse:collapse; font-size:12px;"><thead><tr style="background:#f1f5f9; position:sticky; top:0; z-index:2;"><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">#</th><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">NIP</th><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Nama</th><th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Bagian</th></tr></thead><tbody>`;
+    let msg = '📋 DATABASE PESERTA\n' + '='.repeat(40) + '\n';
     masterPeserta.forEach((p, i) => {
-        tableHtml += `<tr><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${i+1}</td><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nip}</td><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nama}</td><td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.bagian}</td></tr>`;
+        msg += `${String(i+1).padStart(3)}. ${p.nip} | ${p.nama} | ${p.bagian}\n`;
     });
-    tableHtml += `</tbody></table>`;
-    body.innerHTML = tableHtml;
-    const footer = document.createElement('div');
-    footer.style.cssText = `margin-top:12px; padding-top:12px; border-top:2px solid #e8edf5; text-align:center; flex-shrink:0;`;
-    const closeFooterBtn = document.createElement('button');
-    closeFooterBtn.className = 'btn btn-primary';
-    closeFooterBtn.style.cssText = `width:100%; padding:12px; border:none; border-radius:12px; background:linear-gradient(135deg, #1e3c72, #2a5298); color:white; font-weight:600; font-size:15px; cursor:pointer;`;
-    closeFooterBtn.innerHTML = '<i class="fas fa-times"></i> Tutup';
-    closeFooterBtn.onclick = function() { modal.remove(); };
-    footer.appendChild(closeFooterBtn);
-    content.appendChild(header);
-    content.appendChild(body);
-    content.appendChild(footer);
-    modal.appendChild(content);
-    modal.onclick = function(e) { if (e.target === this) this.remove(); };
-    document.body.appendChild(modal);
+    alert(msg);
 }
 
-// ============================================================
-// RESET DATABASE
-// ============================================================
 function resetDatabase() {
     if (masterPeserta.length === 0) { showToast('⚠️ Database kosong', 'info'); return; }
     if (!confirm(`Hapus database (${masterPeserta.length} peserta)?`)) return;
@@ -795,121 +740,6 @@ function resetDatabase() {
     showToast('🗑️ Database direset', 'info');
 }
 
-// ============================================================
-// ADMIN REFRESH
-// ============================================================
-function adminRefresh() {
-    loadFromFirebase();
-    showToast('🔄 Data diperbarui', 'info');
-}
-
-// ============================================================
-// RENDER TABEL
-// ============================================================
-function renderTabel() {
-    // 🔥 AUTO RESET NOMOR - PASTIKAN URUT!
-    if (antrian.length > 0) {
-        antrian.forEach((a, idx) => {
-            a.nomor = String(idx + 1).padStart(3, '0');
-        });
-        nomorTerakhir = antrian.length;
-    }
-
-    const tbody = document.getElementById('tbodyAntrian');
-    const count = document.getElementById('countAntrian');
-    const info = document.getElementById('infoAntrianAdmin');
-
-    const data = antrian;
-    const totalItems = data.length;
-    const totalPages = Math.ceil(totalItems / itemsPerPageAdmin) || 1;
-
-    if (currentPageAdmin > totalPages) currentPageAdmin = totalPages;
-    if (currentPageAdmin < 1) currentPageAdmin = 1;
-
-    const start = (currentPageAdmin - 1) * itemsPerPageAdmin;
-    const end = Math.min(start + itemsPerPageAdmin, totalItems);
-    const pageData = data.slice(start, end);
-
-    count.textContent = totalItems + ' antrian';
-    if (info) info.textContent = `Menampilkan ${totalItems === 0 ? 0 : start+1} - ${end} dari ${totalItems} antrian`;
-
-    const prevBtn = document.getElementById('prevPageAdminBtn');
-    const nextBtn = document.getElementById('nextPageAdminBtn');
-    if (prevBtn) prevBtn.disabled = (currentPageAdmin === 1 || totalItems === 0);
-    if (nextBtn) nextBtn.disabled = (currentPageAdmin === totalPages || totalItems === 0);
-
-    if (totalItems === 0) {
-        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><i class="fas fa-inbox"></i>Belum ada antrian</div></td></tr>`;
-        return;
-    }
-
-    let html = '';
-    pageData.forEach((a, idx) => {
-        const rowId = `row-admin-${a.nip}`;
-        const isHighlighted = (highlightedNipAdmin === a.nip);
-        html += `<tr id="${rowId}" onclick="klikAntrianAdmin('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
-            <td>${start + idx + 1}</td>
-            <td>${a.nip}</td>
-            <td>${a.nama}</td>
-            <td>${a.bagian}</td>
-            <td class="nomor-cell">${a.nomor}</td>
-            <td><button class="btn-delete" onclick="event.stopPropagation(); hapusAntrian('${a.nip}')" title="Hapus antrian"><i class="fas fa-trash-alt"></i></button></td>
-        </tr>`;
-    });
-    tbody.innerHTML = html;
-    simpanKeLocalStorage();
-}
-
-// ============================================================
-// HAPUS ANTRIAN
-// ============================================================
-function hapusAntrian(nip) {
-    const items = antrian.filter(a => a.nip === nip);
-    if (items.length === 0) {
-        showToast('⚠️ Data tidak ditemukan', 'error');
-        return;
-    }
-    
-    let targetNip = nip;
-    if (items.length > 1) {
-        let msg = '⚠️ Ada ' + items.length + ' data dengan NIP yang sama:\n\n';
-        items.forEach((a, idx) => {
-            msg += `${idx+1}. ${a.nama} - ${a.bagian} (${a.nomor})\n`;
-        });
-        msg += '\nMasukkan nomor urut yang ingin dihapus (atau 0 untuk batal):';
-        const pilihan = prompt(msg);
-        if (pilihan === null || pilihan === '0') return;
-        const idx = parseInt(pilihan) - 1;
-        if (isNaN(idx) || idx < 0 || idx >= items.length) {
-            showToast('⚠️ Pilihan tidak valid!', 'error');
-            return;
-        }
-        const globalIndex = antrian.indexOf(items[idx]);
-        if (globalIndex !== -1) {
-            const namaPeserta = antrian[globalIndex].nama;
-            antrian.splice(globalIndex, 1);
-            renderTabel();
-            simpanKeLocalStorage();
-            syncToFirebase();
-            showToast(`🗑️ Antrian "${namaPeserta}" dihapus`, 'info');
-        }
-        return;
-    }
-    
-    const peserta = items[0];
-    if (!confirm(`Hapus antrian "${peserta.nama}" (NIP: ${nip})?`)) return;
-    
-    antrian = antrian.filter(a => a.nip !== nip);
-    renderTabel();
-    if (antrian.length === 0) document.getElementById('ticket').classList.remove('show');
-    simpanKeLocalStorage();
-    syncToFirebase();
-    showToast(`🗑️ Antrian "${peserta.nama}" dihapus`, 'info');
-}
-
-// ============================================================
-// RESET ALL ANTRIAN
-// ============================================================
 function resetAll() {
     if (antrian.length === 0) { showToast('⚠️ Tidak ada antrian', 'info'); return; }
     if (!confirm('Hapus semua antrian?')) return;
@@ -922,23 +752,52 @@ function resetAll() {
     showToast('🔄 Semua antrian direset', 'info');
 }
 
-// ============================================================
-// SAVE EXCEL
-// ============================================================
 function saveExcel() {
-    if (antrian.length === 0) { showToast('⚠️ Belum ada data antrian', 'error'); return; }
-    const dataForExcel = [['#', 'NIP', 'Nama', 'Bagian', 'Nomor Antrian']];
-    antrian.forEach((a, i) => dataForExcel.push([i+1, a.nip, a.nama, a.bagian, a.nomor]));
+    if (antrian.length === 0) { showToast('⚠️ Belum ada data', 'error'); return; }
+    const data = [['#', 'NIP', 'Nama', 'Bagian', 'Nomor']];
+    antrian.forEach((a, i) => data.push([i+1, a.nip, a.nama, a.bagian, a.nomor]));
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet(dataForExcel);
-    ws['!cols'] = [{ wch: 5 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 15 }];
+    const ws = XLSX.utils.aoa_to_sheet(data);
     XLSX.utils.book_append_sheet(wb, ws, "Antrian");
     XLSX.writeFile(wb, `Antrian_KPJ_${new Date().toISOString().slice(0,10)}.xlsx`);
-    showToast('📥 File Excel berhasil didownload!', 'success');
+    showToast('📥 File Excel diunduh!', 'success');
+}
+
+function adminRefresh() {
+    loadFromFirebase();
+    showToast('🔄 Data diperbarui', 'info');
+}
+
+function ubahPasswordAdmin() {
+    const oldPass = prompt('🔒 Password lama:');
+    if (oldPass === null) return;
+    if (oldPass !== adminPassword) {
+        showToast('❌ Password salah!', 'error');
+        return;
+    }
+    const newPass = prompt('🔑 Password baru (min 4 karakter):');
+    if (newPass === null) return;
+    if (newPass.trim().length < 4) {
+        showToast('⚠️ Minimal 4 karakter!', 'error');
+        return;
+    }
+    const confirmPass = prompt('🔑 Konfirmasi password:');
+    if (newPass !== confirmPass) {
+        showToast('❌ Password tidak cocok!', 'error');
+        return;
+    }
+    database.ref('adminPassword').set(newPass.trim())
+        .then(() => {
+            adminPassword = newPass.trim();
+            showToast('✅ Password diubah!', 'success');
+        })
+        .catch(err => {
+            showToast('⚠️ Gagal simpan: ' + err.message, 'error');
+        });
 }
 
 // ============================================================
-// LOCAL STORAGE
+// LOCAL STORAGE & FIREBASE SYNC (SAMA SEPERTI USER)
 // ============================================================
 function simpanKeLocalStorage() {
     localStorage.setItem('antrianSembako', JSON.stringify({ antrian, nomorTerakhir }));
@@ -987,267 +846,132 @@ function loadSuggestionDariLocalStorage() {
     return false;
 }
 
-// ============================================================
-// FIREBASE SYNC (AMAN - GABUNG DATA)
-// ============================================================
 function syncToFirebase() {
-    if (!firebaseEnabled || !database) return;
-    if (isSyncing) return;
+    if (!firebaseEnabled || !database || isSyncing) return;
     isSyncing = true;
     
-    try {
-        database.ref('antrianData').once('value')
-            .then((snapshot) => {
-                const fbData = snapshot.val();
-                const fbAntrian = (fbData && fbData.antrian) || [];
-                const fbTimestamp = (fbData && fbData.lastUpdated) || 0;
-                const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
-                
-                if (fbAntrian.length > 0 && fbTimestamp > localTimestamp) {
-                    antrian = JSON.parse(JSON.stringify(fbAntrian));
-                    nomorTerakhir = fbData.nomorTerakhir || antrian.length;
-                    if (fbData.masterPeserta && fbData.masterPeserta.length > 0) {
-                        masterPeserta = fbData.masterPeserta;
-                        simpanSuggestionKeLocalStorage();
-                        updateDatabaseStatus();
-                    }
-                    renderTabel();
-                    simpanKeLocalStorage();
-                    localStorage.setItem('antrianLastUpdated', fbTimestamp);
-                    isSyncing = false;
-                    return;
-                }
-                
-                if (antrian.length > 0) {
-                    let mergedData = [...fbAntrian];
-                    antrian.forEach(localItem => {
-                        const exists = mergedData.some(fbItem => 
-                            fbItem.nip === localItem.nip || 
-                            fbItem.nama.toLowerCase() === localItem.nama.toLowerCase()
-                        );
-                        if (!exists) {
-                            mergedData.push(JSON.parse(JSON.stringify(localItem)));
-                        }
-                    });
-                    mergedData.forEach((a, idx) => {
-                        a.nomor = String(idx + 1).padStart(3, '0');
-                    });
-                    antrian = mergedData;
-                    nomorTerakhir = antrian.length;
-                    
-                    const updates = {};
-                    updates['antrianData/antrian'] = antrian;
-                    updates['antrianData/nomorTerakhir'] = nomorTerakhir;
-                    updates['antrianData/masterPeserta'] = masterPeserta;
-                    updates['antrianData/lastUpdated'] = Date.now();
-                    
-                    database.ref().update(updates)
-                        .then(() => {
-                            localStorage.setItem('antrianLastUpdated', Date.now());
-                            renderTabel();
-                            simpanKeLocalStorage();
-                        })
-                        .catch((err) => console.error('Sync error:', err))
-                        .finally(() => { isSyncing = false; });
-                } else {
-                    isSyncing = false;
-                }
-            })
-            .catch(() => { isSyncing = false; });
-    } catch (e) {
-        console.error('Sync error:', e);
-        isSyncing = false;
+    const seen = new Set();
+    const clean = [];
+    antrian.forEach(a => {
+        const key = a.nip + '|' + (a.nama || '').toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            clean.push(a);
+        }
+    });
+    if (clean.length !== antrian.length) {
+        antrian = clean;
+        renderTabel();
     }
+    
+    if (antrian.length === 0) { isSyncing = false; return; }
+    
+    database.ref('antrianData').once('value')
+        .then(snap => {
+            const fbData = snap.val();
+            const fbAntrian = (fbData && fbData.antrian) || [];
+            const fbTime = (fbData && fbData.lastUpdated) || 0;
+            const localTime = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+            
+            if (fbAntrian.length > antrian.length && fbTime > localTime) {
+                antrian = fbAntrian;
+                nomorTerakhir = antrian.length;
+                renderTabel();
+                simpanKeLocalStorage();
+                localStorage.setItem('antrianLastUpdated', fbTime);
+                isSyncing = false;
+                return;
+            }
+            
+            if (antrian.length > 0) {
+                database.ref().update({
+                    'antrianData/antrian': antrian,
+                    'antrianData/nomorTerakhir': nomorTerakhir,
+                    'antrianData/masterPeserta': masterPeserta,
+                    'antrianData/lastUpdated': Date.now()
+                }).then(() => {
+                    localStorage.setItem('antrianLastUpdated', Date.now());
+                }).catch(err => console.error('Sync error:', err))
+                .finally(() => { isSyncing = false; });
+            } else {
+                isSyncing = false;
+            }
+        })
+        .catch(() => { isSyncing = false; });
 }
 
 function loadFromFirebase() {
     if (!firebaseEnabled || !database) return;
-    
     database.ref('antrianData').on('value', (snapshot) => {
         if (isSyncing) return;
-        
         const data = snapshot.val();
         if (data && data.antrian && data.antrian.length > 0) {
-            const fbTimestamp = data.lastUpdated || 0;
-            const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
-            
-            if (fbTimestamp > localTimestamp) {
-                const fbAntrian = data.antrian || [];
-                let mergedData = [...antrian];
-                
-                fbAntrian.forEach(fbItem => {
-                    const exists = mergedData.some(localItem => 
-                        localItem.nip === fbItem.nip || 
-                        localItem.nama.toLowerCase() === fbItem.nama.toLowerCase()
-                    );
-                    if (!exists) {
-                        mergedData.push(JSON.parse(JSON.stringify(fbItem)));
+            const fbTime = data.lastUpdated || 0;
+            const localTime = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+            if (fbTime > localTime) {
+                const seen = new Set();
+                const clean = [];
+                data.antrian.forEach(a => {
+                    const key = a.nip + '|' + (a.nama || '').toLowerCase();
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        clean.push(a);
                     }
                 });
-                
-                mergedData.forEach((a, idx) => {
-                    a.nomor = String(idx + 1).padStart(3, '0');
-                });
-                
-                antrian = mergedData;
+                clean.forEach((a, i) => a.nomor = String(i + 1).padStart(3, '0'));
+                antrian = clean;
                 nomorTerakhir = antrian.length;
-                
                 if (data.masterPeserta && data.masterPeserta.length > 0) {
                     masterPeserta = data.masterPeserta;
                     simpanSuggestionKeLocalStorage();
-                    updateDatabaseStatus();
                 }
-                
                 renderTabel();
                 simpanKeLocalStorage();
-                localStorage.setItem('antrianLastUpdated', fbTimestamp);
+                localStorage.setItem('antrianLastUpdated', fbTime);
+                if (clean.length !== data.antrian.length) {
+                    database.ref('antrianData/antrian').set(clean);
+                    database.ref('antrianData/nomorTerakhir').set(clean.length);
+                    database.ref('antrianData/lastUpdated').set(Date.now());
+                }
             }
         }
-    }, (error) => {
-        console.error('Firebase error:', error);
     });
 }
 
-// ============================================================
-// HAPUS DUPLIKAT
-// ============================================================
-function hapusDuplikat() {
-    if (antrian.length === 0) {
-        showToast('⚠️ Tidak ada antrian', 'info');
-        return;
-    }
-    
-    const totalAwal = antrian.length;
-    const seenName = new Set();
-    const seenNip = new Set();
-    const baru = [];
-    let duplikat = 0;
-    
-    antrian.forEach(a => {
-        const nameKey = a.nama.toLowerCase();
-        if (seenName.has(nameKey) || seenNip.has(a.nip)) {
-            duplikat++;
-        } else {
-            seenName.add(nameKey);
-            seenNip.add(a.nip);
-            baru.push(a);
-        }
-    });
-    
-    if (duplikat === 0) {
-        showToast('✅ Tidak ada duplikat ditemukan', 'success');
-        return;
-    }
-    
-    if (!confirm(`Ditemukan ${duplikat} data duplikat (nama/NIP sama). Hapus?`)) return;
-    
-    antrian = baru;
-    antrian.forEach((a, idx) => {
-        a.nomor = String(idx + 1).padStart(3, '0');
-    });
-    nomorTerakhir = antrian.length;
-    
-    renderTabel();
-    simpanKeLocalStorage();
-    syncToFirebase();
-    showToast(`✅ ${duplikat} duplikat dihapus! (${antrian.length} antrian tersisa)`, 'success');
-}
-
-// ============================================================
-// PASSWORD ADMIN
-// ============================================================
 let adminPassword = 'admin123';
 
 function loadAdminPassword() {
     if (!firebaseEnabled || !database) return;
     database.ref('adminPassword').on('value', (snapshot) => {
         const data = snapshot.val();
-        if (data) {
-            adminPassword = data;
-        } else {
-            database.ref('adminPassword').set(adminPassword);
-        }
+        if (data) adminPassword = data;
+        else database.ref('adminPassword').set(adminPassword);
     });
 }
 
-function ubahPasswordAdmin() {
-    const oldPassword = prompt('🔒 Masukkan password lama:');
-    if (oldPassword === null) return;
-    if (oldPassword !== adminPassword) {
-        showToast('❌ Password lama salah!', 'error');
-        return;
-    }
-    const newPassword = prompt('🔑 Masukkan password baru (minimal 4 karakter):');
-    if (newPassword === null) return;
-    if (newPassword.trim().length < 4) {
-        showToast('⚠️ Password minimal 4 karakter!', 'error');
-        return;
-    }
-    const confirmPassword = prompt('🔑 Konfirmasi password baru:');
-    if (confirmPassword === null) return;
-    if (newPassword !== confirmPassword) {
-        showToast('❌ Password tidak cocok!', 'error');
-        return;
-    }
-    if (!firebaseEnabled || !database) {
-        showToast('⚠️ Firebase tidak terhubung!', 'error');
-        return;
-    }
-    database.ref('adminPassword').set(newPassword.trim())
-        .then(() => {
-            adminPassword = newPassword.trim();
-            showToast('✅ Password berhasil diubah!', 'success');
-        })
-        .catch((error) => {
-            showToast('⚠️ Gagal menyimpan password: ' + error.message, 'error');
-        });
-}
-
 // ============================================================
-// INIT (ADMIN)
+// INIT
 // ============================================================
 window.onload = function() {
     const hasData = loadSuggestionDariLocalStorage();
-    if (!hasData) {
-        if (typeof DEFAULT_PESERTA !== 'undefined') {
-            masterPeserta = DEFAULT_PESERTA;
-            simpanSuggestionKeLocalStorage();
-        }
+    if (!hasData && typeof DEFAULT_PESERTA !== 'undefined') {
+        masterPeserta = DEFAULT_PESERTA;
+        simpanSuggestionKeLocalStorage();
     }
-
     const hasAntrian = loadDariLocalStorage();
-    if (!hasAntrian) {
-        antrian = [];
-        nomorTerakhir = 0;
-    }
-    
+    if (!hasAntrian) { antrian = []; nomorTerakhir = 0; }
     updateDatabaseStatus();
     updateJadwalUI();
     currentPageAdmin = 1;
     renderTabel();
-
     if (firebaseEnabled) {
         loadFromFirebase();
         loadJadwalFromFirebase();
         loadAdminPassword();
-        setInterval(() => {
-            if (!isSyncing) {
-                syncToFirebase();
-            }
-        }, 30000);
+        setInterval(() => { if (!isSyncing) syncToFirebase(); }, 30000);
     }
-
-    if (antrian.length === 0) {
-        document.getElementById('inputNip').focus();
-    }
+    if (antrian.length === 0) document.getElementById('inputNip').focus();
 };
 
-function nextPageAdmin() {
-    currentPageAdmin++;
-    renderTabel();
-}
-
-function prevPageAdmin() {
-    currentPageAdmin--;
-    renderTabel();
-}
+function nextPageAdmin() { currentPageAdmin++; renderTabel(); }
+function prevPageAdmin() { currentPageAdmin--; renderTabel(); }
