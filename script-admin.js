@@ -91,7 +91,6 @@ function updateDatabaseStatus() {
 // JADWAL FUNCTIONS
 // ============================================================
 function loadJadwalFromFirebase() {
-    // 🔥 TAMPILKAN DEFAULT DULU
     updateJadwalUI();
     
     if (!firebaseEnabled || !database) {
@@ -106,7 +105,6 @@ function loadJadwalFromFirebase() {
             updateJadwalUI();
             console.log('✅ Jadwal di-load dari Firebase');
         } else {
-            // Simpan default ke Firebase
             saveJadwalToFirebase();
             console.log('📦 Data kosong, simpan default ke Firebase');
         }
@@ -514,7 +512,6 @@ document.addEventListener('click', function(e) {
 // AMBIL ANTRIAN (ADMIN)
 // ============================================================
 function ambilAntrian() {
-    // Cek jadwal
     const cek = cekJamOperasional();
     if (!cek.boleh) {
         showToast(cek.pesan, 'error');
@@ -538,7 +535,7 @@ function ambilAntrian() {
         return;
     }
 
-    // 2. (OPSIONAL) CEK FORMAT NIP - 11 DIGIT ANGKA
+    // 2. CEK FORMAT NIP - 11 DIGIT ANGKA
     if (!/^\d{11}$/.test(nip)) {
         showToast('⚠️ Format NIP salah! Harus 11 digit angka.', 'error');
         clearForm();
@@ -553,18 +550,8 @@ function ambilAntrian() {
         return;
     }
 
-
-    // 🔥 CEK DUPLIKAT NIP (di antrian lokal)
-    const cekAntrian = antrian.find(a => a.nip === nip);
-    if (cekAntrian) {
-        showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cekAntrian.nomor}`, 'error');
-        clearForm();
-        return;
-    }
-
-    // 🔥 CEK DUPLIKAT NIP (di Firebase, untuk multi-user)
+    // CEK DUPLIKAT NIP (di Firebase, untuk multi-user)
     if (firebaseEnabled && database) {
-        // Cek di Firebase apakah NIP sudah ada
         const nipRef = database.ref('antrianData/antrian');
         nipRef.once('value', (snapshot) => {
             const data = snapshot.val();
@@ -576,14 +563,11 @@ function ambilAntrian() {
                     return;
                 }
             }
-            // Lanjutkan proses ambil antrian
             prosesAmbilAntrian(nip, nama, bagian);
         }).catch(() => {
-            // Jika Firebase error, lanjutkan dengan data lokal
             prosesAmbilAntrian(nip, nama, bagian);
         });
     } else {
-        // Tanpa Firebase, langsung proses
         prosesAmbilAntrian(nip, nama, bagian);
     }
 }
@@ -592,11 +576,9 @@ function ambilAntrian() {
 // PROSES AMBIL ANTRIAN (DENGAN ATOMIC INCREMENT)
 // ============================================================
 function prosesAmbilAntrian(nip, nama, bagian) {
-    // 🔥 Gunakan Firebase Transaction untuk nomor unik
     if (firebaseEnabled && database) {
         const ref = database.ref('antrianData/nomorTerakhir');
         ref.transaction((current) => {
-            // Jika current null, set ke 0
             return (current || 0) + 1;
         }, (error, committed, snapshot) => {
             if (error) {
@@ -605,14 +587,12 @@ function prosesAmbilAntrian(nip, nama, bagian) {
             }
             if (committed) {
                 const nomorBaru = String(snapshot.val()).padStart(3, '0');
-                // Simpan antrian dengan nomor baru
                 simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru);
             } else {
                 showToast('⚠️ Gagal mendapatkan nomor antrian', 'error');
             }
         }, false);
     } else {
-        // Tanpa Firebase, gunakan localStorage
         nomorTerakhir++;
         const nomorBaru = String(nomorTerakhir).padStart(3, '0');
         simpanAntrianLokal(nip, nama, bagian, nomorBaru);
@@ -627,10 +607,8 @@ function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
         nip, nama, bagian, nomor: nomorBaru
     };
 
-    // Ambil data antrian saat ini dari Firebase
     database.ref('antrianData/antrian').once('value', (snapshot) => {
         let antrianData = snapshot.val() || [];
-        // Cek duplikat lagi untuk jaga-jaga
         const exists = antrianData.some(a => a.nip === nip);
         if (exists) {
             showToast(`⚠️ NIP "${nama}" sudah terdaftar!`, 'error');
@@ -638,10 +616,8 @@ function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
             return;
         }
         antrianData.push(data);
-        // Simpan kembali ke Firebase
         database.ref('antrianData/antrian').set(antrianData)
             .then(() => {
-                // Tambahkan ke array lokal
                 antrian.push(data);
                 renderTabel();
                 document.getElementById('nomorAntrian').textContent = nomorBaru;
@@ -651,7 +627,7 @@ function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
                 document.getElementById('waktuAmbil').textContent = waktu;
                 document.getElementById('ticket').classList.add('show');
                 clearForm();
-                simpanKeLocalStorage(); // backup ke localStorage
+                simpanKeLocalStorage();
                 showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
             })
             .catch((err) => {
@@ -675,7 +651,7 @@ function simpanAntrianLokal(nip, nama, bagian, nomorBaru) {
     document.getElementById('ticket').classList.add('show');
     clearForm();
     simpanKeLocalStorage();
-    syncToFirebase(); // sync jika ada Firebase
+    syncToFirebase();
     showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
 }
 
@@ -730,7 +706,7 @@ function klikAntrianAdmin(nip) {
 }
 
 // ============================================================
-// DOWNLOAD GAMBAR TIKET (ADMIN) - SAMA SEPERTI USER
+// DOWNLOAD GAMBAR TIKET (ADMIN)
 // ============================================================
 function downloadTicketImageAdmin() {
     const ticket = document.getElementById('ticket');
@@ -791,6 +767,7 @@ function lihatAntrianSaya() {
         showToast('😕 NIP tidak ditemukan dalam antrian', 'info');
     }
 }
+
 // ============================================================
 // TAMBAH PESERTA (ADMIN ONLY)
 // ============================================================
@@ -932,7 +909,7 @@ function importData(event) {
 }
 
 // ============================================================
-// LIHAT DATABASE (ADMIN) - DENGAN MODAL RESPONSIF
+// LIHAT DATABASE (ADMIN)
 // ============================================================
 function lihatDatabase() {
     if (masterPeserta.length === 0) {
@@ -940,7 +917,6 @@ function lihatDatabase() {
         return;
     }
 
-    // Buat modal container
     const modal = document.createElement('div');
     modal.id = 'modalDatabase';
     modal.style.cssText = `
@@ -959,7 +935,6 @@ function lihatDatabase() {
         -webkit-overflow-scrolling: touch;
     `;
 
-    // Konten modal
     const content = document.createElement('div');
     content.style.cssText = `
         background: white;
@@ -975,7 +950,6 @@ function lihatDatabase() {
         position: relative;
     `;
 
-    // ===== HEADER =====
     const header = document.createElement('div');
     header.style.cssText = `
         display: flex;
@@ -993,7 +967,6 @@ function lihatDatabase() {
         </h3>
     `;
 
-    // ===== TOMBOL TUTUP (di header) =====
     const closeBtn = document.createElement('button');
     closeBtn.innerHTML = '&times;';
     closeBtn.style.cssText = `
@@ -1013,14 +986,12 @@ function lihatDatabase() {
         e.stopPropagation();
         modal.remove();
     };
-    // 🔥 Tambahkan event touch untuk HP
     closeBtn.ontouchstart = function(e) {
         e.preventDefault();
         modal.remove();
     };
     header.appendChild(closeBtn);
 
-    // ===== BODY (SCROLLABLE) =====
     const body = document.createElement('div');
     body.style.cssText = `
         overflow-y: auto;
@@ -1029,19 +1000,14 @@ function lihatDatabase() {
         -webkit-overflow-scrolling: touch;
     `;
 
-    // Buat tabel
     let tableHtml = `
-        <table style="
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        ">
+        <table style="width:100%; border-collapse:collapse; font-size:12px;">
             <thead>
-                <tr style="background: #f1f5f9; position: sticky; top: 0; z-index: 2;">
-                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">#</th>
-                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">NIP</th>
-                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">Nama</th>
-                    <th style="padding: 6px 8px; text-align: left; border-bottom: 2px solid #e8edf5;">Bagian</th>
+                <tr style="background:#f1f5f9; position:sticky; top:0; z-index:2;">
+                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">#</th>
+                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">NIP</th>
+                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Nama</th>
+                    <th style="padding:6px 8px; text-align:left; border-bottom:2px solid #e8edf5;">Bagian</th>
                 </tr>
             </thead>
             <tbody>
@@ -1050,21 +1016,17 @@ function lihatDatabase() {
     masterPeserta.forEach((p, i) => {
         tableHtml += `
             <tr>
-                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${i + 1}</td>
-                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${p.nip}</td>
-                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${p.nama}</td>
-                <td style="padding: 5px 8px; border-bottom: 1px solid #f0f4fa;">${p.bagian}</td>
+                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${i + 1}</td>
+                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nip}</td>
+                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.nama}</td>
+                <td style="padding:5px 8px; border-bottom:1px solid #f0f4fa;">${p.bagian}</td>
             </tr>
         `;
     });
 
-    tableHtml += `
-            </tbody>
-        </table>
-    `;
+    tableHtml += `</tbody></table>`;
     body.innerHTML = tableHtml;
 
-    // ===== FOOTER =====
     const footer = document.createElement('div');
     footer.style.cssText = `
         margin-top: 12px;
@@ -1100,19 +1062,16 @@ function lihatDatabase() {
     };
     footer.appendChild(closeFooterBtn);
 
-    // ===== GABUNGKAN =====
     content.appendChild(header);
     content.appendChild(body);
     content.appendChild(footer);
     modal.appendChild(content);
 
-    // ===== TUTUP MODAL SAAT KLIK DI LUAR =====
     modal.onclick = function(e) {
         if (e.target === this) {
             this.remove();
         }
     };
-    // 🔥 Untuk HP (touch)
     modal.ontouchstart = function(e) {
         if (e.target === this) {
             this.remove();
@@ -1146,12 +1105,20 @@ function adminRefresh() {
     showToast('🔄 Data diperbarui', 'info');
 }
 
-
 // ============================================================
 // RENDER TABEL (ADMIN - Dengan Aksi Hapus)
 // ============================================================
-let highlightedNipAdmin = null; // Untuk menyimpan NIP yang sedang di-highlight
+let highlightedNipAdmin = null;
+
 function renderTabel() {
+    // 🔥 AUTO RESET NOMOR SEBELUM RENDER
+    if (antrian.length > 0) {
+        antrian.forEach((a, idx) => {
+            a.nomor = String(idx + 1).padStart(3, '0');
+        });
+        nomorTerakhir = antrian.length;
+    }
+
     const tbody = document.getElementById('tbodyAntrian');
     const count = document.getElementById('countAntrian');
     const info = document.getElementById('infoAntrianAdmin');
@@ -1170,7 +1137,6 @@ function renderTabel() {
     count.textContent = totalItems + ' antrian';
     if (info) info.textContent = `Menampilkan ${totalItems === 0 ? 0 : start+1} - ${end} dari ${totalItems} antrian`;
 
-    // Update tombol pagination
     const prevBtn = document.getElementById('prevPageAdminBtn');
     const nextBtn = document.getElementById('nextPageAdminBtn');
     if (prevBtn) prevBtn.disabled = (currentPageAdmin === 1 || totalItems === 0);
@@ -1184,7 +1150,6 @@ function renderTabel() {
     let html = '';
     pageData.forEach((a, idx) => {
         const rowId = `row-admin-${a.nip}`;
-        // 🔥 Jika nip ini sedang di-highlight, tambahkan style langsung
         const isHighlighted = (highlightedNipAdmin === a.nip);
         html += `
             <tr id="${rowId}" onclick="klikAntrianAdmin('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
@@ -1202,6 +1167,9 @@ function renderTabel() {
         `;
     });
     tbody.innerHTML = html;
+
+    // 🔥 SIMPAN SETELAH RENDER
+    simpanKeLocalStorage();
 }
 
 // ============================================================
@@ -1213,9 +1181,6 @@ function hapusAntrian(nip) {
     if (!confirm(`Hapus antrian "${peserta.nama}"?`)) return;
 
     antrian = antrian.filter(a => a.nip !== nip);
-    antrian.forEach((a, idx) => a.nomor = String(idx + 1).padStart(3, '0'));
-    nomorTerakhir = antrian.length;
-
     renderTabel();
     if (antrian.length === 0) document.getElementById('ticket').classList.remove('show');
     simpanKeLocalStorage();
@@ -1318,7 +1283,6 @@ const itemsPerPageAdmin = 10;
 function syncToFirebase() {
     if (!firebaseEnabled || !database) return;
     try {
-        // 🔥 Gunakan update, bukan set, agar tidak overwrite data lain
         const updates = {};
         updates['antrianData/antrian'] = antrian;
         updates['antrianData/nomorTerakhir'] = nomorTerakhir;
@@ -1343,7 +1307,6 @@ function loadFromFirebase() {
     database.ref('antrianData').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // 🔥 Hanya update jika data dari Firebase lebih baru
             const lastUpdated = data.lastUpdated || 0;
             const localLastUpdated = localStorage.getItem('antrianLastUpdated') || 0;
             
@@ -1380,11 +1343,8 @@ function loadFromFirebase() {
 // ============================================================
 // PASSWORD ADMIN (Disimpan di Firebase)
 // ============================================================
-let adminPassword = 'admin123'; // Default password
+let adminPassword = 'admin123';
 
-// ============================================================
-// LOAD PASSWORD DARI FIREBASE
-// ============================================================
 function loadAdminPassword() {
     if (!firebaseEnabled || !database) return;
     database.ref('adminPassword').on('value', (snapshot) => {
@@ -1393,18 +1353,13 @@ function loadAdminPassword() {
             adminPassword = data;
             console.log('🔑 Password admin di-load dari Firebase');
         } else {
-            // Jika belum ada, simpan default
             database.ref('adminPassword').set(adminPassword);
             console.log('🔑 Password default disimpan ke Firebase');
         }
     });
 }
 
-// ============================================================
-// UBAH PASSWORD ADMIN
-// ============================================================
 function ubahPasswordAdmin() {
-    // Tampilkan dialog untuk ubah password
     const oldPassword = prompt('🔒 Masukkan password lama:');
     if (oldPassword === null) return;
     
@@ -1428,7 +1383,6 @@ function ubahPasswordAdmin() {
         return;
     }
     
-    // Simpan ke Firebase
     if (!firebaseEnabled || !database) {
         showToast('⚠️ Firebase tidak terhubung!', 'error');
         return;
@@ -1446,29 +1400,6 @@ function ubahPasswordAdmin() {
 }
 
 // ============================================================
-// RESET NOMOR ANTRIAN (Urutkan Ulang)
-// ============================================================
-function resetNomorAntrian() {
-    if (antrian.length === 0) {
-        showToast('⚠️ Tidak ada antrian', 'info');
-        return;
-    }
-    
-    if (!confirm('Reset ulang semua nomor antrian? (1,2,3,...)')) return;
-    
-    // Urutkan ulang nomor
-    antrian.forEach((a, idx) => {
-        a.nomor = String(idx + 1).padStart(3, '0');
-    });
-    nomorTerakhir = antrian.length;
-    
-    renderTabel();
-    simpanKeLocalStorage();
-    syncToFirebase();
-    showToast(`🔄 Nomor direset! (${antrian.length} antrian)`, 'success');
-}
-
-// ============================================================
 // INIT (ADMIN)
 // ============================================================
 window.onload = function() {
@@ -1481,10 +1412,8 @@ window.onload = function() {
     loadDariLocalStorage();
     updateDatabaseStatus();
 
-    // 🔥 TAMPILKAN JADWAL DEFAULT DULU
     updateJadwalUI();
 
-    // 🔥 PAGINATION: Set halaman awal ke 1
     currentPageAdmin = 1;
     renderTabel();
 

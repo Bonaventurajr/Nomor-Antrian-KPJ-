@@ -164,7 +164,7 @@ function updateJadwalStatusUser() {
 }
 
 // ============================================================
-// AUTOCOMPLETE (Sama dengan admin)
+// AUTOCOMPLETE
 // ============================================================
 function filterAutocomplete(field, query) {
     const listMap = { nip: 'listNip', nama: 'listNama', bagian: 'listBagian' };
@@ -364,7 +364,6 @@ document.addEventListener('click', function(e) {
 // AMBIL ANTRIAN (USER)
 // ============================================================
 function ambilAntrian() {
-    // Cek jadwal
     const cek = cekJamOperasional();
     if (!cek.boleh) {
         showToast(cek.pesan, 'error');
@@ -388,26 +387,17 @@ function ambilAntrian() {
         return;
     }
 
-    // 2. (OPSIONAL) CEK FORMAT NIP - 11 DIGIT ANGKA
+    // 2. CEK FORMAT NIP - 11 DIGIT ANGKA
     if (!/^\d{11}$/.test(nip)) {
         showToast('⚠️ Format NIP salah! Harus 11 digit angka.', 'error');
         clearForm();
         return;
     }
 
-    // 3.  CEK DOUBLE DI ANTRIAN (CEGAH DUPLIKAT)
+    // 3. CEK DOUBLE DI ANTRIAN (CEGAH DUPLIKAT)
     const existing = antrian.find(a => a.nip === nip);
     if (existing) {
         showToast(`⚠️ NIP "${nama}" sudah terdaftar dengan nomor ${existing.nomor}`, 'error');
-        clearForm();
-        return;
-    }
-
-
-    // CEK DUPLIKAT NIP (di antrian lokal)
-    const cekAntrian = antrian.find(a => a.nip === nip);
-    if (cekAntrian) {
-        showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cekAntrian.nomor}`, 'error');
         clearForm();
         return;
     }
@@ -527,16 +517,14 @@ function clearForm() {
 }
 
 // ============================================================
-// ============================================================
 // CEK ANTRIAN SAYA + HIGHLIGHT KUNING
 // ============================================================
-    function lihatAntrianSaya() {
+function lihatAntrianSaya() {
     const nip = prompt('Masukkan NIP Anda:');
     if (!nip) return;
     
     const data = antrian.find(a => a.nip === nip.trim());
     if (data) {
-        // 🔥 UPDATE TICKET dengan data yang ditemukan
         document.getElementById('nomorAntrian').textContent = data.nomor;
         document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
         const { tanggal, waktu } = formatTanggalWaktu();
@@ -544,7 +532,6 @@ function clearForm() {
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
 
-        // Cari halaman yang berisi data ini
         const index = antrian.findIndex(a => a.nip === nip.trim());
         if (index !== -1) {
             const page = Math.floor(index / itemsPerPage) + 1;
@@ -554,7 +541,6 @@ function clearForm() {
             }
         }
 
-        // 🔥 Highlight setelah render selesai
         setTimeout(() => {
             highlightRow(nip.trim());
         }, 200);
@@ -566,13 +552,9 @@ function clearForm() {
 }
 
 function highlightRow(nip) {
-    // 🔥 Set NIP yang akan di-highlight
     highlightedNip = nip;
-
-    // 🔥 Render ulang tabel agar highlight tercetak
     renderTabel();
 
-    // 🔥 Scroll ke baris setelah render selesai
     setTimeout(() => {
         const row = document.getElementById(`row-${nip}`);
         if (row) {
@@ -580,22 +562,19 @@ function highlightRow(nip) {
         }
     }, 300);
 
-    // 🔥 Hapus highlight setelah 15 detik
     clearTimeout(window._highlightTimer);
     window._highlightTimer = setTimeout(() => {
         highlightedNip = null;
-        renderTabel(); // Render ulang tanpa highlight
+        renderTabel();
     }, 15000);
 }
 
-    
 // ============================================================
 // KLIK BARIS TABEL → TAMPILKAN NOMOR
 // ============================================================
 function klikAntrian(nip) {
     const data = antrian.find(a => a.nip === nip);
     if (data) {
-        // 🔥 UPDATE TICKET
         document.getElementById('nomorAntrian').textContent = data.nomor;
         document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
         const { tanggal, waktu } = formatTanggalWaktu();
@@ -603,7 +582,6 @@ function klikAntrian(nip) {
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
 
-        // 🔥 Highlight
         highlightRow(nip);
         showToast(`🎫 Menampilkan nomor ${data.nomor} untuk ${data.nama}`, 'info');
     }
@@ -614,23 +592,20 @@ function klikAntrian(nip) {
 // ============================================================
 function downloadTicketImage() {
     const ticket = document.getElementById('ticket');
-    // Pastikan ticket terlihat
     if (!ticket.classList.contains('show')) {
         showToast('⚠️ Belum ada nomor antrian untuk diunduh!', 'error');
         return;
     }
 
-    // Gunakan html2canvas untuk screenshot
     html2canvas(ticket, {
         scale: 4,
-        backgroundColor: '#fefefe',
+        backgroundColor: '#ffffff',
         allowTaint: false,
         useCORS: true
     }).then(canvas => {
-        // Buat link download
         const link = document.createElement('a');
         link.download = `Tiket_Antrian_${document.getElementById('nomorAntrian').textContent}.png`;
-        link.href = canvas.toDataURL('image/png');
+        link.href = canvas.toDataURL('image/png', 1.0);
         link.click();
         showToast('📥 Tiket berhasil diunduh!', 'success');
     }).catch(err => {
@@ -645,6 +620,14 @@ function downloadTicketImage() {
 let highlightedNip = null;
 
 function renderTabel() {
+    // 🔥 AUTO RESET NOMOR SEBELUM RENDER
+    if (antrian.length > 0) {
+        antrian.forEach((a, idx) => {
+            a.nomor = String(idx + 1).padStart(3, '0');
+        });
+        nomorTerakhir = antrian.length;
+    }
+
     const tbody = document.getElementById('tbodyAntrian');
     const count = document.getElementById('countAntrian');
     const info = document.getElementById('infoAntrian');
@@ -674,7 +657,6 @@ function renderTabel() {
     let html = '';
     pageData.forEach((a, idx) => {
         const rowId = `row-${a.nip}`;
-        // 🔥 Jika nip ini sedang di-highlight, tambahkan style langsung
         const isHighlighted = (highlightedNip === a.nip);
         html += `
             <tr id="${rowId}" onclick="klikAntrian('${a.nip}')" style="cursor:pointer; ${isHighlighted ? 'background-color: #fef08a !important;' : ''}">
@@ -687,6 +669,9 @@ function renderTabel() {
         `;
     });
     tbody.innerHTML = html;
+
+    // 🔥 SIMPAN SETELAH RENDER
+    simpanKeLocalStorage();
 }
 
 // ============================================================
@@ -696,12 +681,9 @@ function simpanKeLocalStorage() {
     localStorage.setItem('antrianSembako', JSON.stringify({ antrian, nomorTerakhir }));
 }
 
-// ============================================================
-// PAGINATION
-// ============================================================
-    let currentPage = 1;
-    const itemsPerPage = 10;
-    let filteredAntrian = []; // Untuk pencarian (opsional)
+let currentPage = 1;
+const itemsPerPage = 10;
+let filteredAntrian = [];
 
 function loadDariLocalStorage() {
     const data = localStorage.getItem('antrianSembako');
@@ -748,7 +730,6 @@ function loadSuggestionDariLocalStorage() {
 function syncToFirebase() {
     if (!firebaseEnabled || !database) return;
     try {
-        // 🔥 Gunakan update, bukan set, agar tidak overwrite data lain
         const updates = {};
         updates['antrianData/antrian'] = antrian;
         updates['antrianData/nomorTerakhir'] = nomorTerakhir;
@@ -773,7 +754,6 @@ function loadFromFirebase() {
     database.ref('antrianData').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            // 🔥 Hanya update jika data dari Firebase lebih baru
             const lastUpdated = data.lastUpdated || 0;
             const localLastUpdated = localStorage.getItem('antrianLastUpdated') || 0;
             
@@ -813,7 +793,6 @@ function loadFromFirebase() {
 window.onload = function() {
     const hasData = loadSuggestionDariLocalStorage();
     if (!hasData) {
-        // 🔥 DEFAULT_PESERTA sekarang dari data.js
         if (typeof DEFAULT_PESERTA !== 'undefined') {
             masterPeserta = DEFAULT_PESERTA;
             simpanSuggestionKeLocalStorage();
