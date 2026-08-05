@@ -16,14 +16,6 @@ try {
 }
 
 // ============================================================
-// DATA PESERTA DEFAULT
-// ============================================================
-const DEFAULT_PESERTA = [
-    // (Sama seperti di script-admin.js - 391 peserta)
-    // Copy semua data dari script-admin.js
-];
-
-// ============================================================
 // DATA VARIABLES
 // ============================================================
 let masterPeserta = [];
@@ -372,6 +364,7 @@ document.addEventListener('click', function(e) {
 // AMBIL ANTRIAN (USER)
 // ============================================================
 function ambilAntrian() {
+    // Cek jadwal
     const cek = cekJamOperasional();
     if (!cek.boleh) {
         showToast(cek.pesan, 'error');
@@ -387,6 +380,23 @@ function ambilAntrian() {
         return;
     }
 
+    // 1. CEK APAKAH NIP TERDAFTAR DI MASTER PESERTA
+    const peserta = masterPeserta.find(p => p.nip === nip);
+    if (!peserta) {
+        showToast('❌ NIP tidak terdaftar! Silakan hubungi admin.', 'error');
+        clearForm();
+        return;
+    }
+
+    // 2. (OPSIONAL) CEK FORMAT NIP - 11 DIGIT ANGKA
+    if (!/^\d{11}$/.test(nip)) {
+        showToast('⚠️ Format NIP salah! Harus 11 digit angka.', 'error');
+        clearForm();
+        return;
+    }
+
+
+    // CEK DUPLIKAT NIP (di antrian lokal)
     const cekAntrian = antrian.find(a => a.nip === nip);
     if (cekAntrian) {
         showToast(`⚠️ "${nama}" sudah terdaftar dengan nomor ${cekAntrian.nomor}`, 'error');
@@ -394,26 +404,103 @@ function ambilAntrian() {
         return;
     }
 
-    const found = masterPeserta.find(p => p.nip === nip);
-    if (found) {
-        found.nama = nama;
-        found.bagian = bagian;
-        simpanSuggestionKeLocalStorage();
+    // CEK DUPLIKAT NIP (di Firebase)
+    if (firebaseEnabled && database) {
+        const nipRef = database.ref('antrianData/antrian');
+        nipRef.once('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                const exists = data.some(a => a.nip === nip);
+                if (exists) {
+                    showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
+                    clearForm();
+                    return;
+                }
+            }
+            prosesAmbilAntrian(nip, nama, bagian);
+        }).catch(() => {
+            prosesAmbilAntrian(nip, nama, bagian);
+        });
+    } else {
+        prosesAmbilAntrian(nip, nama, bagian);
     }
+}
 
-    nomorTerakhir++;
-    const nomorBaru = String(nomorTerakhir).padStart(3, '0');
+// ============================================================
+// PROSES AMBIL ANTRIAN
+// ============================================================
+function prosesAmbilAntrian(nip, nama, bagian) {
+    if (firebaseEnabled && database) {
+        const ref = database.ref('antrianData/nomorTerakhir');
+        ref.transaction((current) => {
+            return (current || 0) + 1;
+        }, (error, committed, snapshot) => {
+            if (error) {
+                showToast('⚠️ Gagal mengambil nomor antrian', 'error');
+                return;
+            }
+            if (committed) {
+                const nomorBaru = String(snapshot.val()).padStart(3, '0');
+                simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru);
+            } else {
+                showToast('⚠️ Gagal mendapatkan nomor antrian', 'error');
+            }
+        }, false);
+    } else {
+        nomorTerakhir++;
+        const nomorBaru = String(nomorTerakhir).padStart(3, '0');
+        simpanAntrianLokal(nip, nama, bagian, nomorBaru);
+    }
+}
 
+// ============================================================
+// SIMPAN ANTRIAN KE FIREBASE
+// ============================================================
+function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
+    const data = { nip, nama, bagian, nomor: nomorBaru };
+
+    database.ref('antrianData/antrian').once('value', (snapshot) => {
+        let antrianData = snapshot.val() || [];
+        const exists = antrianData.some(a => a.nip === nip);
+        if (exists) {
+            showToast(`⚠️ NIP "${nama}" sudah terdaftar!`, 'error');
+            clearForm();
+            return;
+        }
+        antrianData.push(data);
+        database.ref('antrianData/antrian').set(antrianData)
+            .then(() => {
+                antrian.push(data);
+                renderTabel();
+                document.getElementById('nomorAntrian').textContent = nomorBaru;
+                document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+                const { tanggal, waktu } = formatTanggalWaktu();
+                document.getElementById('tanggalAmbil').textContent = tanggal;
+                document.getElementById('waktuAmbil').textContent = waktu;
+                document.getElementById('ticket').classList.add('show');
+                clearForm();
+                simpanKeLocalStorage();
+                showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+            })
+            .catch((err) => {
+                showToast('⚠️ Gagal menyimpan ke Firebase', 'error');
+                console.error(err);
+            });
+    });
+}
+
+// ============================================================
+// SIMPAN ANTRIAN LOKAL
+// ============================================================
+function simpanAntrianLokal(nip, nama, bagian, nomorBaru) {
     antrian.push({ nip, nama, bagian, nomor: nomorBaru });
     renderTabel();
-
-    const { tanggal, waktu } = formatTanggalWaktu();
     document.getElementById('nomorAntrian').textContent = nomorBaru;
     document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+    const { tanggal, waktu } = formatTanggalWaktu();
     document.getElementById('tanggalAmbil').textContent = tanggal;
     document.getElementById('waktuAmbil').textContent = waktu;
     document.getElementById('ticket').classList.add('show');
-
     clearForm();
     simpanKeLocalStorage();
     syncToFirebase();
@@ -653,18 +740,23 @@ function loadSuggestionDariLocalStorage() {
 function syncToFirebase() {
     if (!firebaseEnabled || !database) return;
     try {
-        const data = {
-            antrian: antrian,
-            nomorTerakhir: nomorTerakhir,
-            masterPeserta: masterPeserta,
-            lastUpdated: firebase.database.ServerValue.TIMESTAMP
-        };
-        database.ref('antrianData').set(data);
-        const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
+        // 🔥 Gunakan update, bukan set, agar tidak overwrite data lain
+        const updates = {};
+        updates['antrianData/antrian'] = antrian;
+        updates['antrianData/nomorTerakhir'] = nomorTerakhir;
+        updates['antrianData/masterPeserta'] = masterPeserta;
+        updates['antrianData/lastUpdated'] = firebase.database.ServerValue.TIMESTAMP;
+        
+        database.ref().update(updates)
+            .then(() => {
+                const syncStatus = document.getElementById('syncStatus');
+                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
+            })
+            .catch((err) => {
+                console.error('Sync error:', err);
+            });
     } catch (e) {
-        const syncStatus = document.getElementById('syncStatus');
-        if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-exclamation-triangle" style="color:#f59e0b;"></i> Sync Failed';
+        console.error('Sync error:', e);
     }
 }
 
@@ -673,26 +765,34 @@ function loadFromFirebase() {
     database.ref('antrianData').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
-            antrian = data.antrian || [];
-            nomorTerakhir = data.nomorTerakhir || 0;
-            if (data.masterPeserta && data.masterPeserta.length > 0) {
-                masterPeserta = data.masterPeserta;
-                simpanSuggestionKeLocalStorage();
-                updateDatabaseStatus();
+            // 🔥 Hanya update jika data dari Firebase lebih baru
+            const lastUpdated = data.lastUpdated || 0;
+            const localLastUpdated = localStorage.getItem('antrianLastUpdated') || 0;
+            
+            if (lastUpdated > localLastUpdated) {
+                antrian = data.antrian || [];
+                nomorTerakhir = data.nomorTerakhir || 0;
+                if (data.masterPeserta && data.masterPeserta.length > 0) {
+                    masterPeserta = data.masterPeserta;
+                    simpanSuggestionKeLocalStorage();
+                    updateDatabaseStatus();
+                }
+                renderTabel();
+                simpanKeLocalStorage();
+                localStorage.setItem('antrianLastUpdated', lastUpdated);
+                
+                if (antrian.length > 0) {
+                    const last = antrian[antrian.length - 1];
+                    document.getElementById('nomorAntrian').textContent = last.nomor;
+                    document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
+                    const { tanggal, waktu } = formatTanggalWaktu();
+                    document.getElementById('tanggalAmbil').textContent = tanggal;
+                    document.getElementById('waktuAmbil').textContent = waktu;
+                    document.getElementById('ticket').classList.add('show');
+                }
+                const syncStatus = document.getElementById('syncStatus');
+                if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
             }
-            renderTabel();
-            simpanKeLocalStorage();
-            if (antrian.length > 0) {
-                const last = antrian[antrian.length - 1];
-                document.getElementById('nomorAntrian').textContent = last.nomor;
-                document.getElementById('detailAntrian').innerHTML = `<strong>${last.nama}</strong> · ${last.bagian}`;
-                const { tanggal, waktu } = formatTanggalWaktu();
-                document.getElementById('tanggalAmbil').textContent = tanggal;
-                document.getElementById('waktuAmbil').textContent = waktu;
-                document.getElementById('ticket').classList.add('show');
-            }
-            const syncStatus = document.getElementById('syncStatus');
-            if (syncStatus) syncStatus.innerHTML = '<i class="fas fa-cloud"></i> Sync OK';
         }
     }, (error) => {
         console.error('Firebase error:', error);
@@ -705,8 +805,14 @@ function loadFromFirebase() {
 window.onload = function() {
     const hasData = loadSuggestionDariLocalStorage();
     if (!hasData) {
-        masterPeserta = DEFAULT_PESERTA;
-        simpanSuggestionKeLocalStorage();
+        // 🔥 DEFAULT_PESERTA sekarang dari data.js
+        if (typeof DEFAULT_PESERTA !== 'undefined') {
+            masterPeserta = DEFAULT_PESERTA;
+            simpanSuggestionKeLocalStorage();
+        } else {
+            console.error('❌ DEFAULT_PESERTA tidak ditemukan!');
+            showToast('⚠️ Data peserta tidak ditemukan!', 'error');
+        }
     }
 
     loadDariLocalStorage();
