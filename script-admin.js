@@ -396,10 +396,10 @@ function ambilAntrian() {
         return;
     }
 
-    // ✅ VALIDASI NIP (CEGAH DUPLIKAT NIP)
+    // 🔥 CEK DUPLIKAT NIP
     const existingNip = antrian.find(a => a.nip === nip);
     if (existingNip) {
-        showToast(`⚠️ NIP "${nip}" sudah terdaftar untuk ${existingNip.nama}`, 'error');
+        showToast(`⚠️ NIP "${nip}" sudah terdaftar untuk ${existingNip.nama} (Nomor: ${existingNip.nomor})`, 'error');
         clearForm();
         return;
     }
@@ -408,13 +408,24 @@ function ambilAntrian() {
         database.ref('antrianData/antrian').once('value', (snapshot) => {
             const data = snapshot.val() || [];
             
-            // ✅ CEK NIP DI FIREBASE
-            if (data.some(a => a.nip === nip)) {
-                showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
+            // 🔥 CEK DUPLIKAT NIP DI FIREBASE
+            const fbExisting = data.find(a => a.nip === nip);
+            if (fbExisting) {
+                showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem dengan nomor ${fbExisting.nomor}!`, 'error');
                 clearForm();
                 return;
             }
-            prosesAmbilAntrian(nip, nama, bagian);
+            
+            // 🔥 CEK NOMOR TERAKHIR DI FIREBASE
+            database.ref('antrianData/nomorTerakhir').once('value', (snap) => {
+                const fbLast = snap.val() || 0;
+                // Ambil yang paling besar antara lokal dan Firebase
+                const maxLast = Math.max(nomorTerakhir, fbLast);
+                nomorTerakhir = maxLast;
+                prosesAmbilAntrian(nip, nama, bagian);
+            }).catch(() => {
+                prosesAmbilAntrian(nip, nama, bagian);
+            });
         }).catch(() => {
             prosesAmbilAntrian(nip, nama, bagian);
         });
@@ -519,65 +530,98 @@ function prosesAmbilAntrian(nip, nama, bagian) {
     simpanKeLocalStorage();
     
     if (firebaseEnabled && database) {
-        database.ref('antrianData/antrian').once('value', (snapshot) => {
-            let antrianData = snapshot.val() || [];
+        database.ref('antrianData/nomorTerakhir').once('value', (snap) => {
+            const fbLast = snap.val() || 0;
+            nomorTerakhir = Math.max(nomorTerakhir, fbLast);
             
-            // 🔥 HANYA CEK NIP (BUKAN NAMA)
-            if (antrianData.some(a => a.nip === nip)) {
-                antrian = antrian.filter(a => a.nip !== nip);
-                renderTabel();
-                showToast('⚠️ NIP sudah terdaftar di sistem!', 'error');
-                return;
-            }
+            // Tambah 1
+            nomorTerakhir++;
+            const nomorBaru = String(nomorTerakhir).padStart(3, '0');
             
-            antrianData.push({ nip, nama, bagian, nomor: String(antrianData.length + 1).padStart(3, '0') });
-            antrianData.forEach((a, idx) => {
+            // Simpan data
+            const data = { nip, nama, bagian, nomor: nomorBaru };
+            antrian.push(data);
+            
+            // Reset nomor urut
+            antrian.forEach((a, idx) => {
                 a.nomor = String(idx + 1).padStart(3, '0');
             });
-            database.ref('antrianData/antrian').set(antrianData)
-                .then(() => {
-                    database.ref('antrianData/nomorTerakhir').set(antrianData.length);
-                    database.ref('antrianData/lastUpdated').set(Date.now());
-                    const nomorBaru = String(antrianData.length).padStart(3, '0');
-                    document.getElementById('nomorAntrian').textContent = nomorBaru;
-                    document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
-                    const { tanggal, waktu } = formatTanggalWaktu();
-                    document.getElementById('tanggalAmbil').textContent = tanggal;
-                    document.getElementById('waktuAmbil').textContent = waktu;
-                    document.getElementById('ticket').classList.add('show');
-                    clearForm();
-                    showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
-                    
-                    // AUTO SYNC
-                    setTimeout(() => {
-                        if (!isSyncing && typeof autoSync === 'function') {
-                            autoSync();
-                        }
-                    }, 500);
-                })
-                .catch(err => {
-                    showToast('⚠️ Gagal simpan ke Firebase', 'error');
-                    console.error(err);
+            nomorTerakhir = antrian.length;
+            
+            renderTabel();
+            simpanKeLocalStorage();
+            
+            // 🔥 SIMPAN KE FIREBASE
+            database.ref('antrianData/antrian').once('value', (snapshot) => {
+                let antrianData = snapshot.val() || [];
+                // Cek duplikat
+                if (antrianData.some(a => a.nip === nip)) {
+                    antrian = antrian.filter(a => a.nip !== nip);
+                    renderTabel();
+                    showToast('⚠️ NIP sudah terdaftar di sistem!', 'error');
+                    return;
+                }
+                antrianData.push({ nip, nama, bagian, nomor: nomorBaru });
+                antrianData.forEach((a, idx) => {
+                    a.nomor = String(idx + 1).padStart(3, '0');
                 });
+                
+                database.ref('antrianData/antrian').set(antrianData)
+                    .then(() => {
+                        return database.ref('antrianData/nomorTerakhir').set(antrianData.length);
+                    })
+                    .then(() => {
+                        return database.ref('antrianData/lastUpdated').set(Date.now());
+                    })
+                    .then(() => {
+                        document.getElementById('nomorAntrian').textContent = nomorBaru;
+                        document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+                        const { tanggal, waktu } = formatTanggalWaktu();
+                        document.getElementById('tanggalAmbil').textContent = tanggal;
+                        document.getElementById('waktuAmbil').textContent = waktu;
+                        document.getElementById('ticket').classList.add('show');
+                        clearForm();
+                        showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+                    })
+                    .catch(err => {
+                        showToast('⚠️ Gagal simpan ke Firebase', 'error');
+                        console.error(err);
+                    });
+            });
+        }).catch(() => {
+            // Fallback jika Firebase error
+            prosesAmbilAntrianLokal(nip, nama, bagian);
         });
     } else {
-        const nomorBaru = String(antrian.length).padStart(3, '0');
-        document.getElementById('nomorAntrian').textContent = nomorBaru;
-        document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
-        const { tanggal, waktu } = formatTanggalWaktu();
-        document.getElementById('tanggalAmbil').textContent = tanggal;
-        document.getElementById('waktuAmbil').textContent = waktu;
-        document.getElementById('ticket').classList.add('show');
-        clearForm();
-        showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
-        
-        setTimeout(() => {
-            if (!isSyncing && typeof autoSync === 'function') {
-                autoSync();
-            }
-        }, 500);
+        prosesAmbilAntrianLokal(nip, nama, bagian);
     }
 }
+
+// ============================================================
+// AMBIL ANTRIAN LOKAL (FALLBACK)
+// ============================================================
+function prosesAmbilAntrianLokal(nip, nama, bagian) {
+    nomorTerakhir++;
+    const nomorBaru = String(nomorTerakhir).padStart(3, '0');
+    antrian.push({ nip, nama, bagian, nomor: nomorBaru });
+    antrian.forEach((a, idx) => {
+        a.nomor = String(idx + 1).padStart(3, '0');
+    });
+    nomorTerakhir = antrian.length;
+    renderTabel();
+    simpanKeLocalStorage();
+    syncToFirebase();
+    
+    document.getElementById('nomorAntrian').textContent = nomorBaru;
+    document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+    const { tanggal, waktu } = formatTanggalWaktu();
+    document.getElementById('tanggalAmbil').textContent = tanggal;
+    document.getElementById('waktuAmbil').textContent = waktu;
+    document.getElementById('ticket').classList.add('show');
+    clearForm();
+    showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+}
+
 
 function clearForm() {
     document.getElementById('inputNip').value = '';
@@ -1021,14 +1065,9 @@ function resetDatabase() {
 // RESET ALL (HAPUS SEMUA ANTRIAN SAJA - TIDAK DATABASE)
 // ============================================================
 function resetAll() {
-    if (antrian.length === 0) {
-        showToast('⚠️ Tidak ada antrian', 'info');
-        return;
-    }
-    
     if (!confirm('⚠️ Yakin ingin menghapus SEMUA data antrian (termasuk di Firebase)?\n\nDatabase peserta TIDAK akan terhapus.')) return;
     
-    // 1. Reset antrian lokal
+    // 1. Reset lokal
     antrian = [];
     nomorTerakhir = 0;
     renderTabel();
@@ -1036,7 +1075,7 @@ function resetAll() {
     localStorage.removeItem('antrianSembako');
     localStorage.removeItem('antrianLastUpdated');
     
-    // 2. 🔥 RESET ANTRIAN DI FIREBASE (TAPI MASTER PESERTA TETAP)
+    // 2. 🔥 RESET FIREBASE
     if (firebaseEnabled && database) {
         database.ref('antrianData/antrian').remove()
             .then(() => {
@@ -1046,18 +1085,16 @@ function resetAll() {
                 return database.ref('antrianData/lastUpdated').set(Date.now());
             })
             .then(() => {
-                console.log('✅ Firebase antrian direset! (Master peserta tetap ada)');
-                showToast('🔄 Semua antrian direset (Master peserta tetap ada)!', 'success');
+                console.log('✅ Firebase antrian direset!');
+                showToast('🔄 Semua antrian direset (Lokal + Firebase)!', 'success');
             })
             .catch(err => {
                 console.error('Gagal reset Firebase:', err);
                 showToast('⚠️ Gagal reset Firebase: ' + err.message, 'error');
             });
-    } else {
-        showToast('🔄 Antrian lokal direset (Firebase tidak terhubung)', 'info');
     }
     
-    // 3. Refresh tampilan
+    // 3. Refresh setelah 1.5 detik
     setTimeout(() => {
         location.reload();
     }, 1500);
@@ -1268,93 +1305,7 @@ function syncToFirebase() {
         .catch(() => { isSyncing = false; });
 }
 
-function loadFromFirebase() {
-    if (!firebaseEnabled || !database) return;
-    database.ref('antrianData').on('value', (snapshot) => {
-        if (isSyncing) return;
-        const data = snapshot.val();
-        if (data && data.antrian && data.antrian.length > 0) {
-            const fbTime = data.lastUpdated || 0;
-            const localTime = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
-            if (fbTime > localTime) {
-                const seen = new Set();
-                const clean = [];
-                data.antrian.forEach(a => {
-                    const key = a.nip + '|' + (a.nama || '').toLowerCase();
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        clean.push(a);
-                    }
-                });
-                
-                let perluRepair = false;
-                clean.forEach((a, idx) => {
-                    const expected = String(idx + 1).padStart(3, '0');
-                    if (a.nomor !== expected) {
-                        perluRepair = true;
-                    }
-                });
-                const fbNomorTerakhir = data.nomorTerakhir || clean.length;
-                if (fbNomorTerakhir !== clean.length) {
-                    perluRepair = true;
-                }
-                if (perluRepair) {
-                    clean.forEach((a, idx) => {
-                        a.nomor = String(idx + 1).padStart(3, '0');
-                    });
-                    database.ref('antrianData/antrian').set(clean);
-                    database.ref('antrianData/nomorTerakhir').set(clean.length);
-                    database.ref('antrianData/lastUpdated').set(Date.now());
-                }
-                
-                antrian = clean;
-                nomorTerakhir = antrian.length;
-                if (data.masterPeserta && data.masterPeserta.length > 0) {
-                    masterPeserta = data.masterPeserta;
-                    simpanSuggestionKeLocalStorage();
-                    updateDatabaseStatus();
-                }
-                renderTabel();
-                simpanKeLocalStorage();
-                localStorage.setItem('antrianLastUpdated', fbTime);
-                
-                // 🔥 AUTO SYNC DI SINI (TEMPAT 1)
-                setTimeout(() => {
-                    if (!isSyncing && typeof autoSync === 'function') {
-                        autoSync();
-                    }
-                }, 500);
-            }
-        } else {
-            const localData = localStorage.getItem('antrianSembako');
-            if (localData) {
-                try {
-                    const parsed = JSON.parse(localData);
-                    if (parsed.antrian && parsed.antrian.length > 0) {
-                        antrian = parsed.antrian;
-                        nomorTerakhir = parsed.nomorTerakhir || antrian.length;
-                        antrian.forEach((a, idx) => {
-                            a.nomor = String(idx + 1).padStart(3, '0');
-                        });
-                        nomorTerakhir = antrian.length;
-                        renderTabel();
-                        simpanKeLocalStorage();
-                        syncToFirebase();
-                        
-                        // 🔥 AUTO SYNC DI SINI (TEMPAT 2)
-                        setTimeout(() => {
-                            if (!isSyncing && typeof autoSync === 'function') {
-                                autoSync();
-                            }
-                        }, 500);
-                    }
-                } catch (e) {}
-            }
-        }
-    }, (error) => {
-        console.error('Firebase error:', error);
-    });
-}
+
 
 let adminPassword = 'admin123';
 
