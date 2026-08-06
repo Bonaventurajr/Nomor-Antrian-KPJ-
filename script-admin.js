@@ -396,13 +396,7 @@ function ambilAntrian() {
         return;
     }
 
-    const existingName = antrian.find(a => a.nama.toLowerCase() === nama.toLowerCase());
-    if (existingName) {
-        showToast(`⚠️ Nama "${nama}" sudah terdaftar dengan nomor ${existingName.nomor}`, 'error');
-        clearForm();
-        return;
-    }
-
+    // ✅ VALIDASI NIP (CEGAH DUPLIKAT NIP)
     const existingNip = antrian.find(a => a.nip === nip);
     if (existingNip) {
         showToast(`⚠️ NIP "${nip}" sudah terdaftar untuk ${existingNip.nama}`, 'error');
@@ -413,11 +407,8 @@ function ambilAntrian() {
     if (firebaseEnabled && database) {
         database.ref('antrianData/antrian').once('value', (snapshot) => {
             const data = snapshot.val() || [];
-            if (data.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
-                showToast(`⚠️ Nama "${nama}" sudah terdaftar di sistem!`, 'error');
-                clearForm();
-                return;
-            }
+            
+            // ✅ CEK NIP DI FIREBASE
             if (data.some(a => a.nip === nip)) {
                 showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
                 clearForm();
@@ -430,6 +421,91 @@ function ambilAntrian() {
     } else {
         prosesAmbilAntrian(nip, nama, bagian);
     }
+}
+
+// ============================================================
+// AUTO SYNC (OTOMATIS TANPA TOMBOL)
+// ============================================================
+function autoSync() {
+    if (!firebaseEnabled || !database || isSyncing) return;
+    isSyncing = true;
+    
+    console.log('🔄 Auto sync started...');
+    
+    // 1. Bersihkan duplikat dulu
+    const seen = new Set();
+    const cleanData = [];
+    antrian.forEach(a => {
+        const key = a.nip + '|' + (a.nama || '').toLowerCase();
+        if (!seen.has(key)) {
+            seen.add(key);
+            cleanData.push(a);
+        }
+    });
+    if (cleanData.length !== antrian.length) {
+        antrian = cleanData;
+        antrian.forEach((a, idx) => {
+            a.nomor = String(idx + 1).padStart(3, '0');
+        });
+        nomorTerakhir = antrian.length;
+        renderTabel();
+        simpanKeLocalStorage();
+        console.log('🧹 Duplikat dibersihkan di autoSync');
+    }
+    
+    // 2. Sync ke Firebase
+    database.ref('antrianData').once('value')
+        .then(snap => {
+            const fbData = snap.val();
+            const fbAntrian = (fbData && fbData.antrian) || [];
+            const fbTime = (fbData && fbData.lastUpdated) || 0;
+            const localTime = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+            
+            // 🔥 GABUNGKAN DATA (JANGAN TIMPA)
+            if (fbAntrian.length > 0 || antrian.length > 0) {
+                let merged = [...fbAntrian];
+                
+                // Tambahkan data lokal yang belum ada di Firebase
+                antrian.forEach(localItem => {
+                    const exists = merged.some(fbItem =>
+                        fbItem.nip === localItem.nip ||
+                        fbItem.nama.toLowerCase() === localItem.nama.toLowerCase()
+                    );
+                    if (!exists) {
+                        merged.push(JSON.parse(JSON.stringify(localItem)));
+                    }
+                });
+                
+                // Reset nomor urut
+                merged.forEach((a, idx) => {
+                    a.nomor = String(idx + 1).padStart(3, '0');
+                });
+                
+                // Update data
+                antrian = merged;
+                nomorTerakhir = antrian.length;
+                
+                // Simpan ke Firebase
+                const updates = {};
+                updates['antrianData/antrian'] = antrian;
+                updates['antrianData/nomorTerakhir'] = nomorTerakhir;
+                updates['antrianData/masterPeserta'] = masterPeserta;
+                updates['antrianData/lastUpdated'] = Date.now();
+                
+                database.ref().update(updates)
+                    .then(() => {
+                        renderTabel();
+                        simpanKeLocalStorage();
+                        localStorage.setItem('antrianLastUpdated', Date.now());
+                        console.log(`✅ Auto sync selesai! ${antrian.length} antrian`);
+                    })
+                    .catch(err => console.error('Auto sync error:', err))
+                    .finally(() => { isSyncing = false; });
+            } else {
+                isSyncing = false;
+            }
+        })
+        .catch(() => { isSyncing = false; });
 }
 
 function prosesAmbilAntrian(nip, nama, bagian) {
@@ -445,13 +521,15 @@ function prosesAmbilAntrian(nip, nama, bagian) {
     if (firebaseEnabled && database) {
         database.ref('antrianData/antrian').once('value', (snapshot) => {
             let antrianData = snapshot.val() || [];
-            if (antrianData.some(a => a.nama.toLowerCase() === nama.toLowerCase()) ||
-                antrianData.some(a => a.nip === nip)) {
+            
+            // 🔥 HANYA CEK NIP (BUKAN NAMA)
+            if (antrianData.some(a => a.nip === nip)) {
                 antrian = antrian.filter(a => a.nip !== nip);
                 renderTabel();
-                showToast('⚠️ Duplikat terdeteksi!', 'error');
+                showToast('⚠️ NIP sudah terdaftar di sistem!', 'error');
                 return;
             }
+            
             antrianData.push({ nip, nama, bagian, nomor: String(antrianData.length + 1).padStart(3, '0') });
             antrianData.forEach((a, idx) => {
                 a.nomor = String(idx + 1).padStart(3, '0');
@@ -469,6 +547,13 @@ function prosesAmbilAntrian(nip, nama, bagian) {
                     document.getElementById('ticket').classList.add('show');
                     clearForm();
                     showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+                    
+                    // AUTO SYNC
+                    setTimeout(() => {
+                        if (!isSyncing && typeof autoSync === 'function') {
+                            autoSync();
+                        }
+                    }, 500);
                 })
                 .catch(err => {
                     showToast('⚠️ Gagal simpan ke Firebase', 'error');
@@ -485,6 +570,12 @@ function prosesAmbilAntrian(nip, nama, bagian) {
         document.getElementById('ticket').classList.add('show');
         clearForm();
         showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+        
+        setTimeout(() => {
+            if (!isSyncing && typeof autoSync === 'function') {
+                autoSync();
+            }
+        }, 500);
     }
 }
 
@@ -502,23 +593,20 @@ function clearForm() {
 function renderTabel() {
     // AUTO CLEAN DUPLIKAT
     if (antrian.length > 1) {
-        const seenName = new Set();
-        const seenNip = new Set();
-        const cleanData = [];
-        antrian.forEach(a => {
-            const nameKey = (a.nama || '').toLowerCase();
-            const nipKey = a.nip || '';
-            if (!seenNip.has(nipKey) && !seenName.has(nameKey)) {
-                seenNip.add(nipKey);
-                seenName.add(nameKey);
-                cleanData.push(a);
-            }
-        });
-        if (cleanData.length !== antrian.length) {
-            antrian = cleanData;
-            console.log('🧹 Duplikat otomatis dibersihkan!');
+    const seenNip = new Set();
+    const cleanData = [];
+    antrian.forEach(a => {
+        const nipKey = a.nip || '';
+        if (!seenNip.has(nipKey)) {
+            seenNip.add(nipKey);
+            cleanData.push(a);
         }
+    });
+    if (cleanData.length !== antrian.length) {
+        antrian = cleanData;
+        console.log('🧹 Duplikat NIP dibersihkan!');
     }
+}
     
     // AUTO REPAIR - Perbaiki jika nomor tidak sesuai
     if (antrian.length > 0) {
@@ -609,9 +697,20 @@ function klikAntrianAdmin(nip) {
 }
 
 function lihatAntrianSaya() {
-    const nama = prompt('Masukkan NAMA Anda:');
+    const nama = prompt('🔍 Masukkan NAMA Anda (atau NIP):');
     if (!nama) return;
-    const data = antrian.find(a => a.nama.toLowerCase() === nama.trim().toLowerCase());
+    
+    const input = nama.trim();
+    let data;
+    
+    // Cek apakah input berupa NIP (angka 11 digit)
+    if (/^\d{11}$/.test(input)) {
+        data = antrian.find(a => a.nip === input);
+    } else {
+        // Cari berdasarkan nama (case insensitive)
+        data = antrian.find(a => a.nama.toLowerCase() === input.toLowerCase());
+    }
+    
     if (data) {
         document.getElementById('nomorAntrian').textContent = data.nomor;
         document.getElementById('detailAntrian').innerHTML = `<strong>${data.nama}</strong> · ${data.bagian}`;
@@ -619,15 +718,15 @@ function lihatAntrianSaya() {
         document.getElementById('tanggalAmbil').textContent = tanggal;
         document.getElementById('waktuAmbil').textContent = waktu;
         document.getElementById('ticket').classList.add('show');
-        highlightedNipAdmin = data.nip;
+        highlightedNip = data.nip;
         renderTabel();
         setTimeout(() => {
-            const row = document.getElementById(`row-admin-${data.nip}`);
+            const row = document.getElementById(`row-${data.nip}`);
             if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 300);
         showToast(`🎫 Nomor antrian Anda: ${data.nomor} (${data.nama})`, 'success');
     } else {
-        showToast('😕 Nama tidak ditemukan', 'info');
+        showToast('😕 Nama/NIP tidak ditemukan dalam antrian', 'info');
     }
 }
 
@@ -653,6 +752,11 @@ function hapusAntrian(nip) {
             simpanKeLocalStorage();
             syncToFirebase();
             showToast(`🗑️ Antrian "${namaPeserta}" dihapus`, 'info');
+             setTimeout(() => {
+            if (!isSyncing && typeof autoSync === 'function') {
+            autoSync();
+            }
+        }, 500);
         }
         return;
     }
@@ -664,6 +768,12 @@ function hapusAntrian(nip) {
     simpanKeLocalStorage();
     syncToFirebase();
     showToast(`🗑️ Antrian "${peserta.nama}" dihapus`, 'info');
+    setTimeout(() => {
+    if (!isSyncing && typeof autoSync === 'function') {
+        autoSync();
+    }
+    }, 500);
+    
 }
 
 function tambahPeserta() {
@@ -741,11 +851,160 @@ function lihatDatabase() {
         showToast('📂 Belum ada database', 'info');
         return;
     }
-    let msg = '📋 DATABASE PESERTA\n' + '='.repeat(40) + '\n';
-    masterPeserta.forEach((p, i) => {
-        msg += `${String(i+1).padStart(3)}. ${p.nip} | ${p.nama} | ${p.bagian}\n`;
+    
+    // Modal container
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        position: fixed; top:0; left:0; width:100%; height:100%;
+        background: rgba(0,0,0,0.5); display:flex; justify-content:center;
+        align-items:center; z-index:9999; padding:20px;
+        animation: fadeIn 0.3s ease; backdrop-filter: blur(4px);
+    `;
+    
+    const content = document.createElement('div');
+    content.style.cssText = `
+        background: white; border-radius:20px; padding:24px 20px;
+        max-width: 750px; width:100%; max-height:85vh;
+        display:flex; flex-direction:column;
+        box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+        animation: slideUp 0.3s ease;
+    `;
+    
+    // HEADER dengan tombol close
+    const header = document.createElement('div');
+    header.style.cssText = `
+        display:flex; justify-content:space-between; align-items:center;
+        margin-bottom:12px; padding-bottom:12px;
+        border-bottom:2px solid #e8edf5; flex-shrink:0;
+    `;
+    header.innerHTML = `
+        <h3 style="margin:0; font-size:17px; color:#1a2a4a;">
+            <i class="fas fa-database" style="color:#2a5298;"></i>
+            Database Peserta <span style="font-weight:400; color:#94a3b8; font-size:14px;">(${masterPeserta.length})</span>
+        </h3>
+    `;
+    
+    const closeBtn = document.createElement('button');
+    closeBtn.innerHTML = '✕';
+    closeBtn.style.cssText = `
+        background: none; border: none; font-size:24px; color:#94a3b8;
+        cursor:pointer; padding:0 6px; line-height:1;
+        transition: all 0.3s ease;
+    `;
+    closeBtn.onmouseover = () => closeBtn.style.color = '#1a2a4a';
+    closeBtn.onmouseout = () => closeBtn.style.color = '#94a3b8';
+    closeBtn.onclick = () => modal.remove();
+    header.appendChild(closeBtn);
+    
+    // BODY SCROLLABLE
+    const body = document.createElement('div');
+    body.style.cssText = `
+        overflow-y: auto; flex:1; padding-right:4px;
+        max-height: 55vh;
+    `;
+    
+    // Search box di dalam modal (opsional)
+    const searchBox = document.createElement('div');
+    searchBox.style.cssText = `
+        margin-bottom: 12px;
+        position: sticky; top:0; z-index:3;
+        background: white; padding: 6px 0;
+    `;
+    searchBox.innerHTML = `
+        <input type="text" id="searchDb" placeholder="🔍 Cari NIP atau Nama..."
+            style="width:100%; padding:8px 14px; border:2px solid #e8edf5;
+            border-radius:10px; font-size:14px; outline:none; transition:0.3s;"
+            oninput="filterDatabase(this.value)"
+            onfocus="this.style.borderColor='#2a5298'"
+            onblur="this.style.borderColor='#e8edf5'"
+        />
+    `;
+    body.appendChild(searchBox);
+    
+    // Tabel container
+    const tableWrap = document.createElement('div');
+    tableWrap.id = 'dbTableWrap';
+    tableWrap.style.cssText = `overflow-x: auto;`;
+    tableWrap.innerHTML = buildDatabaseTable(masterPeserta);
+    body.appendChild(tableWrap);
+    
+    // FOOTER
+    const footer = document.createElement('div');
+    footer.style.cssText = `
+        margin-top: 12px; padding-top:12px;
+        border-top:2px solid #e8edf5; text-align:center; flex-shrink:0;
+        display:flex; gap:10px;
+    `;
+    
+    const closeFooterBtn = document.createElement('button');
+    closeFooterBtn.style.cssText = `
+        flex:1; padding:10px; border:none; border-radius:10px;
+        background: linear-gradient(135deg, #1e3c72, #2a5298);
+        color:white; font-weight:600; font-size:14px; cursor:pointer;
+        transition: all 0.3s ease;
+    `;
+    closeFooterBtn.innerHTML = '<i class="fas fa-times"></i> Tutup';
+    closeFooterBtn.onmouseover = () => closeFooterBtn.style.transform = 'scale(1.02)';
+    closeFooterBtn.onmouseout = () => closeFooterBtn.style.transform = 'scale(1)';
+    closeFooterBtn.onclick = () => modal.remove();
+    footer.appendChild(closeFooterBtn);
+    
+    // Gabungkan semua
+    content.appendChild(header);
+    content.appendChild(body);
+    content.appendChild(footer);
+    modal.appendChild(content);
+    document.body.appendChild(modal);
+}
+
+// ============================================================
+// BUILD DATABASE TABLE
+// ============================================================
+function buildDatabaseTable(data) {
+    if (!data || data.length === 0) {
+        return `<div style="text-align:center; padding:30px; color:#94a3b8;">
+            <i class="fas fa-inbox" style="font-size:32px; display:block; margin-bottom:10px;"></i>
+            Tidak ada data
+        </div>`;
+    }
+    let html = `
+        <table style="width:100%; border-collapse:collapse; font-size:13px;">
+            <thead>
+                <tr style="background:#f1f5f9; position:sticky; top:0; z-index:2;">
+                    <th style="padding:8px 10px; text-align:left; border-bottom:2px solid #e8edf5;">#</th>
+                    <th style="padding:8px 10px; text-align:left; border-bottom:2px solid #e8edf5;">NIP</th>
+                    <th style="padding:8px 10px; text-align:left; border-bottom:2px solid #e8edf5;">Nama</th>
+                    <th style="padding:8px 10px; text-align:left; border-bottom:2px solid #e8edf5;">Bagian</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    data.forEach((p, i) => {
+        html += `
+            <tr style="transition:0.2s;" onmouseover="this.style.background='#f8faff'" onmouseout="this.style.background=''">
+                <td style="padding:6px 10px; border-bottom:1px solid #f0f4fa;">${i+1}</td>
+                <td style="padding:6px 10px; border-bottom:1px solid #f0f4fa;">${p.nip}</td>
+                <td style="padding:6px 10px; border-bottom:1px solid #f0f4fa;">${p.nama}</td>
+                <td style="padding:6px 10px; border-bottom:1px solid #f0f4fa;">${p.bagian}</td>
+            </tr>
+        `;
     });
-    alert(msg);
+    html += `</tbody></table>`;
+    return html;
+}
+
+// ============================================================
+// FILTER DATABASE
+// ============================================================
+function filterDatabase(query) {
+    const q = query.toLowerCase().trim();
+    const filtered = masterPeserta.filter(p =>
+        p.nip.includes(q) || p.nama.toLowerCase().includes(q)
+    );
+    const wrap = document.getElementById('dbTableWrap');
+    if (wrap) {
+        wrap.innerHTML = buildDatabaseTable(filtered);
+    }
 }
 
 function resetDatabase() {
@@ -1024,6 +1283,13 @@ function loadFromFirebase() {
                 renderTabel();
                 simpanKeLocalStorage();
                 localStorage.setItem('antrianLastUpdated', fbTime);
+                
+                // 🔥 AUTO SYNC DI SINI (TEMPAT 1)
+                setTimeout(() => {
+                    if (!isSyncing && typeof autoSync === 'function') {
+                        autoSync();
+                    }
+                }, 500);
             }
         } else {
             const localData = localStorage.getItem('antrianSembako');
@@ -1040,6 +1306,13 @@ function loadFromFirebase() {
                         renderTabel();
                         simpanKeLocalStorage();
                         syncToFirebase();
+                        
+                        // 🔥 AUTO SYNC DI SINI (TEMPAT 2)
+                        setTimeout(() => {
+                            if (!isSyncing && typeof autoSync === 'function') {
+                                autoSync();
+                            }
+                        }, 500);
                     }
                 } catch (e) {}
             }
@@ -1079,7 +1352,8 @@ window.onload = function() {
         loadFromFirebase();
         loadJadwalFromFirebase();
         loadAdminPassword();
-        setInterval(() => { if (!isSyncing) syncToFirebase(); }, 30000);
+        setInterval(() => { if (!isSyncing) autosync(); }, 30000);
+        setTimeout(() => { if (!isSyncing) autosync(); }, 5000);
     }
     if (antrian.length === 0) document.getElementById('inputNip').focus();
 };
