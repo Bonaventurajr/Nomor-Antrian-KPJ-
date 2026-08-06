@@ -1017,16 +1017,50 @@ function resetDatabase() {
     showToast('🗑️ Database direset', 'info');
 }
 
+// ============================================================
+// RESET ALL (HAPUS SEMUA ANTRIAN SAJA - TIDAK DATABASE)
+// ============================================================
 function resetAll() {
-    if (antrian.length === 0) { showToast('⚠️ Tidak ada antrian', 'info'); return; }
-    if (!confirm('Hapus semua antrian?')) return;
+    if (antrian.length === 0) {
+        showToast('⚠️ Tidak ada antrian', 'info');
+        return;
+    }
+    
+    if (!confirm('⚠️ Yakin ingin menghapus SEMUA data antrian (termasuk di Firebase)?\n\nDatabase peserta TIDAK akan terhapus.')) return;
+    
+    // 1. Reset antrian lokal
     antrian = [];
     nomorTerakhir = 0;
     renderTabel();
     document.getElementById('ticket').classList.remove('show');
     localStorage.removeItem('antrianSembako');
-    syncToFirebase();
-    showToast('🔄 Semua antrian direset', 'info');
+    localStorage.removeItem('antrianLastUpdated');
+    
+    // 2. 🔥 RESET ANTRIAN DI FIREBASE (TAPI MASTER PESERTA TETAP)
+    if (firebaseEnabled && database) {
+        database.ref('antrianData/antrian').remove()
+            .then(() => {
+                return database.ref('antrianData/nomorTerakhir').set(0);
+            })
+            .then(() => {
+                return database.ref('antrianData/lastUpdated').set(Date.now());
+            })
+            .then(() => {
+                console.log('✅ Firebase antrian direset! (Master peserta tetap ada)');
+                showToast('🔄 Semua antrian direset (Master peserta tetap ada)!', 'success');
+            })
+            .catch(err => {
+                console.error('Gagal reset Firebase:', err);
+                showToast('⚠️ Gagal reset Firebase: ' + err.message, 'error');
+            });
+    } else {
+        showToast('🔄 Antrian lokal direset (Firebase tidak terhubung)', 'info');
+    }
+    
+    // 3. Refresh tampilan
+    setTimeout(() => {
+        location.reload();
+    }, 1500);
 }
 
 function saveExcel() {
