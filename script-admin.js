@@ -92,87 +92,181 @@ function updateDatabaseStatus() {
 }
 
 // ============================================================
-// JADWAL FUNCTIONS
+// JADWAL FUNCTIONS (DIPERBAIKI)
 // ============================================================
 function loadJadwalFromFirebase() {
-    updateJadwalUI();
-    if (!firebaseEnabled || !database) return;
+    if (!firebaseEnabled || !database) {
+        renderJadwalUI();
+        return;
+    }
+    
+    console.log('📥 Memuat jadwal dari Firebase...');
+    
+    // 🔥 Ambil data dari Firebase
+    database.ref('jadwalOperasional').once('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            jadwalOperasional = data;
+            console.log('📦 Jadwal dari Firebase:', jadwalOperasional);
+        } else {
+            console.log('⚠️ Firebase kosong, simpan default...');
+            saveJadwalToFirebase();
+        }
+        renderJadwalUI();
+    }).catch((error) => {
+        console.error('Error load jadwal:', error);
+        renderJadwalUI();
+    });
+    
+    // 🔥 Listener real-time (update jika ada perubahan dari device lain)
     database.ref('jadwalOperasional').on('value', (snapshot) => {
         const data = snapshot.val();
         if (data) {
             jadwalOperasional = data;
-            updateJadwalUI();
+            renderJadwalUI();
+            console.log('📦 Jadwal diupdate (real-time)');
         }
     });
 }
 
-function saveJadwalToFirebase() {
-    if (!firebaseEnabled || !database) return;
-    database.ref('jadwalOperasional').set(jadwalOperasional)
-        .then(() => {
-            showToast('✅ Jadwal berhasil disimpan!', 'success');
-            updateJadwalUI();
-        })
-        .catch((error) => {
-            showToast('⚠️ Gagal menyimpan jadwal: ' + error.message, 'error');
-        });
-}
-
+// ============================================================
+// CEK JAM OPERASIONAL (DENGAN SERVER TIMESTAMP)
+// ============================================================
 function cekJamOperasional() {
     if (!jadwalOperasional.aktif) {
         return { boleh: false, pesan: '📢 Sistem pengambilan antrian sedang ditutup oleh admin.' };
     }
-    const now = new Date();
-    const today = now.toISOString().split('T')[0];
-    if (today < jadwalOperasional.tanggalMulai || today > jadwalOperasional.tanggalSelesai) {
-        return { boleh: false, pesan: `📢 Pengambilan antrian hanya ${formatTanggalIndonesia(jadwalOperasional.tanggalMulai)} - ${formatTanggalIndonesia(jadwalOperasional.tanggalSelesai)}.` };
+    
+    // Gunakan waktu dari Firebase (server time)
+    if (firebaseEnabled && database) {
+        return new Promise((resolve) => {
+            database.ref('.info/serverTimeOffset').once('value')
+                .then(snap => {
+                    const offset = snap.val() || 0;
+                    const now = Date.now() + offset;
+                    const date = new Date(now);
+                    
+                    const result = validateWaktuAdmin(date);
+                    resolve(result);
+                })
+                .catch(() => {
+                    // Fallback ke waktu lokal jika gagal
+                    const result = validateWaktuAdmin(new Date());
+                    resolve(result);
+                });
+        });
+    } else {
+        // Fallback ke waktu lokal
+        return validateWaktuAdmin(new Date());
     }
+}
+
+// ============================================================
+// VALIDASI WAKTU (FUNGSI PEMBANTU - ADMIN)
+// ============================================================
+function validateWaktuAdmin(now) {
+    const today = now.toISOString().split('T')[0];
+    
+    if (today < jadwalOperasional.tanggalMulai || today > jadwalOperasional.tanggalSelesai) {
+        return { 
+            boleh: false, 
+            pesan: `📢 Pengambilan antrian hanya ${formatTanggalIndonesia(jadwalOperasional.tanggalMulai)} - ${formatTanggalIndonesia(jadwalOperasional.tanggalSelesai)}.` 
+        };
+    }
+    
     const hariIni = now.getDay();
     let hariKerja = hariIni === 0 ? 7 : hariIni;
     if (!jadwalOperasional.hariKerja.includes(hariKerja)) {
         return { boleh: false, pesan: '📢 Hari ini bukan hari kerja.' };
     }
+    
     const jamSekarang = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     if (jamSekarang < jadwalOperasional.jamMulai || jamSekarang > jadwalOperasional.jamSelesai) {
-        return { boleh: false, pesan: `📢 Pengambilan nomor antrian hanya ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}.` };
+        return { 
+            boleh: false, 
+            pesan: `📢 Pengambilan nomor antrian hanya ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}.` 
+        };
     }
+    
     return { boleh: true, pesan: '✅ Sistem buka.' };
 }
 
-function updateJadwalUI() {
+// ============================================================
+// RENDER JADWAL UI (ASYNC - DIPERBAIKI)
+// ============================================================
+async function renderJadwalUI() {
     const container = document.getElementById('jadwalContainer');
     if (!container) return;
+    
     const status = jadwalOperasional.aktif ? '🟢 Aktif' : '🔴 Ditutup';
     const warnaStatus = jadwalOperasional.aktif ? '#059669' : '#dc2626';
     const hariMap = {1:'Senin',2:'Selasa',3:'Rabu',4:'Kamis',5:'Jumat',6:'Sabtu',7:'Minggu'};
     const hariKerja = jadwalOperasional.hariKerja.map(h => hariMap[h] || h).join(', ');
     const tglMulai = formatTanggalIndonesia(jadwalOperasional.tanggalMulai);
     const tglSelesai = formatTanggalIndonesia(jadwalOperasional.tanggalSelesai);
+    
+    // Cek status operasional
+    let statusSistem = '';
+    let warnaSistem = '#059669';
+    try {
+        const cek = await cekJamOperasional();
+        if (cek.boleh) {
+            statusSistem = '🟢 Buka';
+            warnaSistem = '#059669';
+        } else {
+            statusSistem = '🔴 Tutup';
+            warnaSistem = '#dc2626';
+        }
+    } catch (error) {
+        statusSistem = '⚠️ Error';
+        warnaSistem = '#f59e0b';
+    }
+    
     container.innerHTML = `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
-            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-calendar-alt"></i> Tanggal Mulai</label>
-                <input type="date" id="tanggalMulaiInput" value="${jadwalOperasional.tanggalMulai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-calendar-alt"></i> Tanggal Mulai
+                </label>
+                <input type="date" id="tanggalMulaiInput" value="${jadwalOperasional.tanggalMulai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
-            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-calendar-alt"></i> Tanggal Selesai</label>
-                <input type="date" id="tanggalSelesaiInput" value="${jadwalOperasional.tanggalSelesai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-calendar-alt"></i> Tanggal Selesai
+                </label>
+                <input type="date" id="tanggalSelesaiInput" value="${jadwalOperasional.tanggalSelesai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
         </div>
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
-            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-clock"></i> Jam Mulai</label>
-                <input type="time" id="jamMulaiInput" value="${jadwalOperasional.jamMulai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-clock"></i> Jam Mulai
+                </label>
+                <input type="time" id="jamMulaiInput" value="${jadwalOperasional.jamMulai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
-            <div><label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-clock"></i> Jam Selesai</label>
-                <input type="time" id="jamSelesaiInput" value="${jadwalOperasional.jamSelesai}" style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
+            <div>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-clock"></i> Jam Selesai
+                </label>
+                <input type="time" id="jamSelesaiInput" value="${jadwalOperasional.jamSelesai}" 
+                       style="width:100%; padding:8px 12px; border:2px solid #e8edf5; border-radius:10px; font-size:14px;"/>
             </div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
             <div style="flex:1; min-width:150px;">
-                <label style="font-weight:600; font-size:13px; color:#1a2a4a;"><i class="fas fa-calendar-day"></i> Hari Kerja</label>
+                <label style="font-weight:600; font-size:13px; color:#1a2a4a;">
+                    <i class="fas fa-calendar-day"></i> Hari Kerja
+                </label>
                 <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
                     ${[1,2,3,4,5,6,7].map(h => {
                         const namaHari = {1:'Sen',2:'Sel',3:'Rab',4:'Kam',5:'Jum',6:'Sab',7:'Min'}[h];
                         const checked = jadwalOperasional.hariKerja.includes(h) ? 'checked' : '';
-                        return `<label style="font-size:12px; display:flex; align-items:center; gap:4px; background:#f1f5f9; padding:4px 10px; border-radius:8px; cursor:pointer;"><input type="checkbox" class="hariKerjaCheck" value="${h}" ${checked} />${namaHari}</label>`;
+                        return `<label style="font-size:12px; display:flex; align-items:center; gap:4px; background:#f1f5f9; padding:4px 10px; border-radius:8px; cursor:pointer;">
+                            <input type="checkbox" class="hariKerjaCheck" value="${h}" ${checked} />${namaHari}
+                        </label>`;
                     })}
                 </div>
             </div>
@@ -184,11 +278,19 @@ function updateJadwalUI() {
             </div>
         </div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;">
-            <button class="btn btn-primary btn-sm" onclick="simpanJadwal()"><i class="fas fa-save"></i> Simpan Jadwal</button>
-            <button class="btn btn-outline btn-sm" onclick="resetJadwalDefault()"><i class="fas fa-undo"></i> Reset Default</button>
+            <button class="btn btn-primary btn-sm" onclick="simpanJadwal()">
+                <i class="fas fa-save"></i> Simpan Jadwal
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="resetJadwalDefault()">
+                <i class="fas fa-undo"></i> Reset Default
+            </button>
+            <button class="btn btn-outline btn-sm" onclick="refreshJadwal()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
         </div>
         <div style="margin-top:10px; padding:10px 14px; background:#f1f5f9; border-radius:8px; font-size:13px; color:#1a2a4a; display:grid; grid-template-columns:1fr 1fr; gap:4px 16px;">
             <div><strong>Status:</strong> <span style="color:${warnaStatus};">${status}</span></div>
+            <div><strong>Sistem:</strong> <span style="color:${warnaSistem};">${statusSistem}</span></div>
             <div><strong>Tanggal:</strong> ${tglMulai} - ${tglSelesai}</div>
             <div><strong>Jam:</strong> ${jadwalOperasional.jamMulai} - ${jadwalOperasional.jamSelesai}</div>
             <div><strong>Hari:</strong> ${hariKerja}</div>
@@ -196,6 +298,58 @@ function updateJadwalUI() {
     `;
 }
 
+// 🔥 LOAD JADWAL DARI FIREBASE (DENGAN PRIORITAS)
+function loadJadwalFromFirebase() {
+    if (!firebaseEnabled || !database) {
+        renderJadwalUI();
+        return;
+    }
+    
+    console.log('📥 Memuat jadwal dari Firebase...');
+    
+    // 🔥 Ambil data dari Firebase
+    database.ref('jadwalOperasional').once('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            jadwalOperasional = data;
+            console.log('📦 Jadwal dari Firebase:', jadwalOperasional);
+        } else {
+            console.log('⚠️ Firebase kosong, simpan default...');
+            saveJadwalToFirebase();
+        }
+        renderJadwalUI();
+    }).catch((error) => {
+        console.error('Error load jadwal:', error);
+        renderJadwalUI();
+    });
+    
+    // 🔥 Listener real-time (update jika ada perubahan dari device lain)
+    database.ref('jadwalOperasional').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            jadwalOperasional = data;
+            renderJadwalUI();
+            console.log('📦 Jadwal diupdate (real-time)');
+        }
+    });
+}
+
+// 🔥 SAVE JADWAL KE FIREBASE
+function saveJadwalToFirebase() {
+    if (!firebaseEnabled || !database) return;
+    
+    database.ref('jadwalOperasional').set(jadwalOperasional)
+        .then(() => {
+            console.log('✅ Jadwal berhasil disimpan ke Firebase');
+            renderJadwalUI();
+        })
+        .catch((error) => {
+            console.error('❌ Gagal menyimpan jadwal:', error);
+            showToast('⚠️ Gagal menyimpan jadwal: ' + error.message, 'error');
+        });
+}
+
+// 🔥 SIMPAN JADWAL (DARI FORM)
 function simpanJadwal() {
     const tanggalMulai = document.getElementById('tanggalMulaiInput').value;
     const tanggalSelesai = document.getElementById('tanggalSelesaiInput').value;
@@ -203,24 +357,91 @@ function simpanJadwal() {
     const jamSelesai = document.getElementById('jamSelesaiInput').value;
     const statusAktif = document.getElementById('statusAktif').checked;
     const hariKerja = [];
-    document.querySelectorAll('.hariKerjaCheck:checked').forEach(cb => hariKerja.push(parseInt(cb.value)));
-    if (!tanggalMulai || !tanggalSelesai) { showToast('⚠️ Tanggal harus diisi!', 'error'); return; }
-    if (tanggalMulai > tanggalSelesai) { showToast('⚠️ Tanggal mulai harus lebih awal!', 'error'); return; }
-    if (!jamMulai || !jamSelesai) { showToast('⚠️ Jam harus diisi!', 'error'); return; }
-    if (jamMulai >= jamSelesai) { showToast('⚠️ Jam mulai harus lebih awal!', 'error'); return; }
-    if (hariKerja.length === 0) { showToast('⚠️ Pilih minimal 1 hari kerja!', 'error'); return; }
-    jadwalOperasional = { aktif: statusAktif, tanggalMulai, tanggalSelesai, jamMulai, jamSelesai, hariKerja, pesanOff: `📢 Pengambilan nomor antrian hanya ${formatTanggalIndonesia(tanggalMulai)} - ${formatTanggalIndonesia(tanggalSelesai)} (${jamMulai} - ${jamSelesai})` };
+    document.querySelectorAll('.hariKerjaCheck:checked').forEach(cb => {
+        hariKerja.push(parseInt(cb.value));
+    });
+    
+    // Validasi
+    if (!tanggalMulai || !tanggalSelesai) {
+        showToast('⚠️ Tanggal mulai dan selesai harus diisi!', 'error');
+        return;
+    }
+    if (tanggalMulai > tanggalSelesai) {
+        showToast('⚠️ Tanggal mulai harus lebih awal dari tanggal selesai!', 'error');
+        return;
+    }
+    if (!jamMulai || !jamSelesai) {
+        showToast('⚠️ Jam mulai dan selesai harus diisi!', 'error');
+        return;
+    }
+    if (jamMulai >= jamSelesai) {
+        showToast('⚠️ Jam mulai harus lebih awal dari jam selesai!', 'error');
+        return;
+    }
+    if (hariKerja.length === 0) {
+        showToast('⚠️ Pilih minimal 1 hari kerja!', 'error');
+        return;
+    }
+    
+    // Update data
+    jadwalOperasional = {
+        aktif: statusAktif,
+        tanggalMulai: tanggalMulai,
+        tanggalSelesai: tanggalSelesai,
+        jamMulai: jamMulai,
+        jamSelesai: jamSelesai,
+        hariKerja: hariKerja,
+        pesanOff: `📢 Pengambilan nomor antrian hanya ${formatTanggalIndonesia(tanggalMulai)} - ${formatTanggalIndonesia(tanggalSelesai)} (${jamMulai} - ${jamSelesai})`
+    };
+    
     saveJadwalToFirebase();
+    showToast('✅ Jadwal berhasil disimpan!', 'success');
 }
 
+// 🔥 REFRESH JADWAL (MANUAL)
+function refreshJadwal() {
+    if (!firebaseEnabled || !database) {
+        showToast('⚠️ Firebase tidak terhubung!', 'error');
+        return;
+    }
+    
+    showToast('🔄 Memuat jadwal terbaru...', 'info');
+    
+    database.ref('jadwalOperasional').once('value')
+        .then((snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                jadwalOperasional = data;
+                renderJadwalUI();
+                showToast('✅ Jadwal terbaru dimuat!', 'success');
+                console.log('📦 Jadwal terbaru:', jadwalOperasional);
+            } else {
+                showToast('⚠️ Tidak ada jadwal di Firebase', 'info');
+            }
+        })
+        .catch((err) => {
+            showToast('⚠️ Gagal load jadwal: ' + err.message, 'error');
+            console.error(err);
+        });
+}
+
+// 🔥 RESET JADWAL KE DEFAULT
 function resetJadwalDefault() {
     if (!confirm('Reset jadwal ke default?')) return;
     const today = new Date();
     const nextWeek = new Date(today);
     nextWeek.setDate(today.getDate() + 7);
-    jadwalOperasional = { aktif: true, tanggalMulai: today.toISOString().split('T')[0], tanggalSelesai: nextWeek.toISOString().split('T')[0], jamMulai: '08:00', jamSelesai: '16:00', hariKerja: [1,2,3,4,5], pesanOff: '📢 Pengambilan nomor antrian hanya 08:00 - 16:00 (Senin-Jumat)' };
+    jadwalOperasional = { 
+        aktif: true, 
+        tanggalMulai: today.toISOString().split('T')[0], 
+        tanggalSelesai: nextWeek.toISOString().split('T')[0], 
+        jamMulai: '08:00', 
+        jamSelesai: '16:00', 
+        hariKerja: [1,2,3,4,5], 
+        pesanOff: '📢 Pengambilan nomor antrian hanya 08:00 - 16:00 (Senin-Jumat)' 
+    };
     saveJadwalToFirebase();
-    updateJadwalUI();
+    renderJadwalUI();
     showToast('🔄 Jadwal direset ke default', 'info');
 }
 
@@ -367,8 +588,8 @@ document.addEventListener('click', function(e) {
 // ============================================================
 // AMBIL ANTRIAN - DENGAN VALIDASI OTOMATIS
 // ============================================================
-function ambilAntrian() {
-    const cek = cekJamOperasional();
+async function ambilAntrian() {
+    const cek = await cekJamOperasional();
     if (!cek.boleh) {
         showToast(cek.pesan, 'error');
         return;
@@ -396,12 +617,12 @@ function ambilAntrian() {
         return;
     }
 
-    const existingName = antrian.find(a => a.nama.toLowerCase() === nama.toLowerCase());
-    if (existingName) {
-        showToast(`⚠️ Nama "${nama}" sudah terdaftar dengan nomor ${existingName.nomor}`, 'error');
-        clearForm();
-        return;
-    }
+    //const existingName = antrian.find(a => a.nama.toLowerCase() === nama.toLowerCase());
+    //if (existingName) {
+        //showToast(`⚠️ Nama "${nama}" sudah terdaftar dengan nomor ${existingName.nomor}`, 'error');
+        //clearForm();
+        //return;
+    //}
 
     const existingNip = antrian.find(a => a.nip === nip);
     if (existingNip) {
@@ -413,11 +634,11 @@ function ambilAntrian() {
     if (firebaseEnabled && database) {
         database.ref('antrianData/antrian').once('value', (snapshot) => {
             const data = snapshot.val() || [];
-            if (data.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
-                showToast(`⚠️ Nama "${nama}" sudah terdaftar di sistem!`, 'error');
-                clearForm();
-                return;
-            }
+            //if (data.some(a => a.nama.toLowerCase() === nama.toLowerCase())) {
+                //showToast(`⚠️ Nama "${nama}" sudah terdaftar di sistem!`, 'error');
+                //clearForm();
+                //return;
+            //}
             if (data.some(a => a.nip === nip)) {
                 showToast(`⚠️ NIP "${nip}" sudah terdaftar di sistem!`, 'error');
                 clearForm();
@@ -432,58 +653,47 @@ function ambilAntrian() {
     }
 }
 
+
+// ============================================================
+// PROSES AMBIL ANTRIAN (ADMIN) - HANYA CEK NIP
+// ============================================================
 function prosesAmbilAntrian(nip, nama, bagian) {
-    const data = { nip, nama, bagian };
+    // Tambahkan ke lokal dulu
+    const data = { nip, nama, bagian, status: 'Menunggu', timestamp: Date.now() };
     antrian.push(data);
-    antrian.forEach((a, idx) => {
-        a.nomor = String(idx + 1).padStart(3, '0');
-    });
-    nomorTerakhir = antrian.length;
     renderTabel();
     simpanKeLocalStorage();
     
     if (firebaseEnabled && database) {
-        database.ref('antrianData/antrian').once('value', (snapshot) => {
-            let antrianData = snapshot.val() || [];
-            if (antrianData.some(a => a.nama.toLowerCase() === nama.toLowerCase()) ||
-                antrianData.some(a => a.nip === nip)) {
+        const ref = database.ref('antrianData/nomorTerakhir');
+        
+        ref.transaction((current) => {
+            return (current || 0) + 1;
+        }, (error, committed, snapshot) => {
+            if (error || !committed) {
+                showToast('⚠️ Gagal mengambil nomor antrian', 'error');
                 antrian = antrian.filter(a => a.nip !== nip);
                 renderTabel();
-                showToast('⚠️ Duplikat terdeteksi!', 'error');
+                simpanKeLocalStorage();
                 return;
             }
-            antrianData.push({ nip, nama, bagian, nomor: String(antrianData.length + 1).padStart(3, '0') });
-            antrianData.forEach((a, idx) => {
-                a.nomor = String(idx + 1).padStart(3, '0');
-            });
-            database.ref('antrianData/antrian').set(antrianData)
-                .then(() => {
-                    database.ref('antrianData/nomorTerakhir').set(antrianData.length);
-                    database.ref('antrianData/lastUpdated').set(Date.now());
-                    const nomorBaru = String(antrianData.length).padStart(3, '0');
-                    document.getElementById('nomorAntrian').textContent = nomorBaru;
-                    document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
-                    const { tanggal, waktu } = formatTanggalWaktu();
-                    document.getElementById('tanggalAmbil').textContent = tanggal;
-                    document.getElementById('waktuAmbil').textContent = waktu;
-                    document.getElementById('ticket').classList.add('show');
-                    clearForm();
-                    showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
-                })
-                .catch(err => {
-                    showToast('⚠️ Gagal simpan ke Firebase', 'error');
-                    console.error(err);
-                });
-        });
+            
+            const nomorBaru = String(snapshot.val()).padStart(3, '0');
+            // Update nomor di lokal
+            const localItem = antrian.find(a => a.nip === nip);
+            if (localItem) localItem.nomor = nomorBaru;
+            renderTabel();
+            simpanKeLocalStorage();
+            
+            simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru);
+        }, false);
     } else {
-        const nomorBaru = String(antrian.length).padStart(3, '0');
-        document.getElementById('nomorAntrian').textContent = nomorBaru;
-        document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
-        const { tanggal, waktu } = formatTanggalWaktu();
-        document.getElementById('tanggalAmbil').textContent = tanggal;
-        document.getElementById('waktuAmbil').textContent = waktu;
-        document.getElementById('ticket').classList.add('show');
-        clearForm();
+        nomorTerakhir++;
+        const nomorBaru = String(nomorTerakhir).padStart(3, '0');
+        const localItem = antrian.find(a => a.nip === nip);
+        if (localItem) localItem.nomor = nomorBaru;
+        renderTabel();
+        simpanKeLocalStorage();
         showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
     }
 }
@@ -500,9 +710,7 @@ function clearForm() {
 // RENDER TABEL - AUTO CLEAN + AUTO RESET + AUTO REPAIR
 // ============================================================
 function renderTabel() {
-    // ============================================================
-    // 🔥 AUTO REPAIR - Perbaiki nomor yang tidak sesuai
-    // ============================================================
+    // 🔥 AUTO REPAIR: Perbaiki jika nomor tidak sesuai jumlah data
     if (antrian.length > 0) {
         let perluRepair = false;
         antrian.forEach((a, idx) => {
@@ -513,6 +721,7 @@ function renderTabel() {
         });
         if (nomorTerakhir !== antrian.length) {
             perluRepair = true;
+            console.log(`⚠️ nomorTerakhir=${nomorTerakhir}, antrian.length=${antrian.length}`);
         }
         
         if (perluRepair) {
@@ -522,9 +731,7 @@ function renderTabel() {
             });
             nomorTerakhir = antrian.length;
             simpanKeLocalStorage();
-            if (typeof syncToFirebase === 'function') {
-                syncToFirebase();
-            }
+            syncToFirebase();
             console.log(`✅ Auto repair selesai! ${nomorTerakhir} antrian`);
         }
     }
@@ -982,6 +1189,24 @@ function ubahPasswordAdmin() {
         });
 }
 
+function repairNomor() {
+    if (antrian.length === 0) {
+        showToast('⚠️ Tidak ada antrian', 'error');
+        return;
+    }
+    
+    if (!confirm(`Perbaiki nomor antrian?\n\nSaat ini:\n- Data antrian: ${antrian.length}\n- Nomor terakhir: ${nomorTerakhir}\n\nAkan disesuaikan menjadi ${antrian.length}?`)) return;
+    
+    antrian.forEach((a, idx) => {
+        a.nomor = String(idx + 1).padStart(3, '0');
+    });
+    nomorTerakhir = antrian.length;
+    renderTabel();
+    simpanKeLocalStorage();
+    syncToFirebase();
+    showToast(`✅ Nomor diperbaiki! ${nomorTerakhir} antrian`, 'success');
+}
+
 // ============================================================
 // LOCAL STORAGE & FIREBASE SYNC
 // ============================================================
@@ -1143,75 +1368,247 @@ function syncToFirebase() {
         .catch(() => { isSyncing = false; });
 }
 
-function loadFromFirebase() {
-    if (!firebaseEnabled || !database) return;
-    database.ref('antrianData').on('value', (snapshot) => {
-        if (isSyncing) return;
-        const data = snapshot.val();
-        if (data && data.antrian && data.antrian.length > 0) {
-            const fbTime = data.lastUpdated || 0;
-            const localTime = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
-            if (fbTime > localTime) {
-                const seen = new Set();
-                const clean = [];
-                data.antrian.forEach(a => {
-                    const key = a.nip + '|' + (a.nama || '').toLowerCase();
-                    if (!seen.has(key)) {
-                        seen.add(key);
-                        clean.push(a);
-                    }
-                });
-                
-                let perluRepair = false;
-                clean.forEach((a, idx) => {
-                    const expected = String(idx + 1).padStart(3, '0');
-                    if (a.nomor !== expected) {
-                        perluRepair = true;
-                    }
-                });
-                const fbNomorTerakhir = data.nomorTerakhir || clean.length;
-                if (fbNomorTerakhir !== clean.length) {
-                    perluRepair = true;
-                }
-                if (perluRepair) {
-                    clean.forEach((a, idx) => {
-                        a.nomor = String(idx + 1).padStart(3, '0');
-                    });
-                    database.ref('antrianData/antrian').set(clean);
-                    database.ref('antrianData/nomorTerakhir').set(clean.length);
-                    database.ref('antrianData/lastUpdated').set(Date.now());
-                }
-                
-                antrian = clean;
-                nomorTerakhir = antrian.length;
-                if (data.masterPeserta && data.masterPeserta.length > 0) {
-                    masterPeserta = data.masterPeserta;
-                    simpanSuggestionKeLocalStorage();
-                    updateDatabaseStatus();
-                }
-                renderTabel();
-                simpanKeLocalStorage();
-                localStorage.setItem('antrianLastUpdated', fbTime);
-            }
-        } else {
-            const localData = localStorage.getItem('antrianSembako');
-            if (localData) {
-                try {
-                    const parsed = JSON.parse(localData);
-                    if (parsed.antrian && parsed.antrian.length > 0) {
-                        antrian = parsed.antrian;
-                        nomorTerakhir = parsed.nomorTerakhir || antrian.length;
-                        antrian.forEach((a, idx) => {
-                            a.nomor = String(idx + 1).padStart(3, '0');
-                        });
-                        nomorTerakhir = antrian.length;
-                        renderTabel();
-                        simpanKeLocalStorage();
-                        syncToFirebase();
-                    }
-                } catch (e) {}
+// ============================================================
+// PANGGIL BERIKUTNYA (DENGAN TRANSACTION)
+// ============================================================
+function panggilBerikutnya() {
+    if (!firebaseEnabled || !database) {
+        return panggilBerikutnyaLokal();
+    }
+    
+    const ref = database.ref('antrianData/antrian');
+    
+    ref.transaction((currentData) => {
+        if (!currentData) return currentData;
+        
+        // Cari antrian dengan status "Menunggu" yang paling kecil nomornya
+        const keys = Object.keys(currentData).sort((a, b) => parseInt(a) - parseInt(b));
+        let foundNomor = null;
+        
+        for (let key of keys) {
+            if (currentData[key].status === 'Menunggu') {
+                currentData[key].status = 'Dipanggil';
+                currentData[key].waktuPanggil = firebase.database.ServerValue.TIMESTAMP;
+                foundNomor = key;
+                break;
             }
         }
+        
+        if (foundNomor) {
+            // Update lastUpdated
+            currentData._meta = {
+                lastUpdated: firebase.database.ServerValue.TIMESTAMP
+            };
+            return currentData;
+        }
+        
+        return currentData; // Tidak ada yang menunggu
+    }, (error, committed, snapshot) => {
+        if (error) {
+            showToast('⚠️ Gagal memanggil: ' + error.message, 'error');
+            return;
+        }
+        
+        if (committed) {
+            const data = snapshot.val();
+            if (data) {
+                // Cari nomor yang baru saja diubah
+                for (let key in data) {
+                    if (key !== '_meta' && data[key].status === 'Dipanggil' && data[key].waktuPanggil) {
+                        showToast(`📢 Panggil nomor ${key} - ${data[key].nama}`, 'success');
+                        // Update lokal
+                        const existing = antrian.find(a => a.nomor === key);
+                        if (existing) {
+                            existing.status = 'Dipanggil';
+                            existing.waktuPanggil = Date.now();
+                        }
+                        renderTabel();
+                        simpanKeLocalStorage();
+                        return;
+                    }
+                }
+            }
+            showToast('✅ Tidak ada antrian yang menunggu', 'info');
+        } else {
+            showToast('⚠️ Gagal memanggil: data berubah', 'error');
+        }
+    });
+}
+
+// ============================================================
+// PANGGIL BERIKUTNYA (FALLBACK LOKAL)
+// ============================================================
+function panggilBerikutnyaLokal() {
+    for (let a of antrian) {
+        if (a.status === 'Menunggu') {
+            a.status = 'Dipanggil';
+            a.waktuPanggil = Date.now();
+            renderTabel();
+            simpanKeLocalStorage();
+            showToast(`📢 Panggil nomor ${a.nomor} - ${a.nama}`, 'success');
+            return;
+        }
+    }
+    showToast('✅ Tidak ada antrian yang menunggu', 'info');
+}
+
+// ============================================================
+// AUTO SYNC (OTOMATIS)
+// ============================================================
+function autoSync() {
+    if (!firebaseEnabled || !database || isSyncing) return;
+    isSyncing = true;
+    
+    console.log('🔄 Auto sync started...');
+    
+    database.ref('antrianData').once('value')
+        .then(snap => {
+            const fbData = snap.val() || {};
+            const fbAntrian = fbData.antrian || {};
+            const fbTimestamp = fbData.lastUpdated || 0;
+            const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+            
+            // Jika Firebase lebih baru, gunakan data Firebase
+            if (fbTimestamp > localTimestamp) {
+                console.log('📥 Firebase lebih baru, sync dari Firebase');
+                
+                // Konversi object ke array
+                const fbEntries = Object.entries(fbAntrian)
+                    .filter(([key]) => key !== '_meta')
+                    .map(([nomor, data]) => ({
+                        nomor: nomor,
+                        ...data
+                    }));
+                
+                // Merge dengan lokal: gunakan yang memiliki timestamp lebih baru
+                const mergedMap = {};
+                
+                // Tambahkan dari Firebase
+                fbEntries.forEach(item => {
+                    mergedMap[item.nomor] = item;
+                });
+                
+                // Tambahkan dari lokal (jika tidak ada di Firebase atau lebih baru)
+                antrian.forEach(item => {
+                    if (!item.nomor) return;
+                    if (!mergedMap[item.nomor]) {
+                        mergedMap[item.nomor] = item;
+                    } else if (item.timestamp > mergedMap[item.nomor].timestamp) {
+                        mergedMap[item.nomor] = item; // Lokal lebih baru
+                    }
+                });
+                
+                // Konversi ke array dan urutkan
+                antrian = Object.values(mergedMap)
+                    .sort((a, b) => parseInt(a.nomor) - parseInt(b.nomor));
+                
+                // Perbaiki nomor jika ada yang tidak berurutan
+                antrian.forEach((item, idx) => {
+                    const expected = String(idx + 1).padStart(3, '0');
+                    if (item.nomor !== expected) {
+                        item.nomor = expected;
+                    }
+                });
+                
+                nomorTerakhir = antrian.length;
+                renderTabel();
+                simpanKeLocalStorage();
+                localStorage.setItem('antrianLastUpdated', Date.now());
+                
+                // Simpan kembali ke Firebase jika ada perubahan
+                const newData = {};
+                antrian.forEach(item => {
+                    newData[item.nomor] = {
+                        nip: item.nip,
+                        nama: item.nama,
+                        bagian: item.bagian,
+                        status: item.status || 'Menunggu',
+                        timestamp: item.timestamp || Date.now()
+                    };
+                });
+                
+                database.ref('antrianData/antrian').set(newData);
+                database.ref('antrianData/nomorTerakhir').set(nomorTerakhir);
+                database.ref('antrianData/lastUpdated').set(Date.now());
+                
+                console.log(`✅ Sync selesai: ${nomorTerakhir} antrian`);
+            } else {
+                console.log('📤 Lokal lebih baru, sync ke Firebase');
+                // Kirim data lokal ke Firebase
+                const newData = {};
+                antrian.forEach(item => {
+                    if (!item.nomor) return;
+                    newData[item.nomor] = {
+                        nip: item.nip,
+                        nama: item.nama,
+                        bagian: item.bagian,
+                        status: item.status || 'Menunggu',
+                        timestamp: item.timestamp || Date.now()
+                    };
+                });
+                
+                database.ref('antrianData/antrian').set(newData);
+                database.ref('antrianData/nomorTerakhir').set(nomorTerakhir);
+                database.ref('antrianData/lastUpdated').set(Date.now());
+                localStorage.setItem('antrianLastUpdated', Date.now());
+                console.log('✅ Data lokal disimpan ke Firebase');
+            }
+            
+            // Sync masterPeserta
+            if (masterPeserta.length > 0) {
+                database.ref('antrianData/masterPeserta').set(masterPeserta);
+            }
+        })
+        .catch(err => {
+            console.error('Auto sync error:', err);
+        })
+        .finally(() => {
+            isSyncing = false;
+        });
+}
+
+function loadFromFirebase() {
+    if (!firebaseEnabled || !database) return;
+    
+    database.ref('antrianData').on('value', (snapshot) => {
+        if (isSyncing) return;
+        
+        const data = snapshot.val() || {};
+        const fbAntrian = data.antrian || {};
+        const fbTimestamp = data.lastUpdated || 0;
+        const localTimestamp = parseInt(localStorage.getItem('antrianLastUpdated')) || 0;
+        
+        // Hanya proses jika Firebase lebih baru
+        if (fbTimestamp <= localTimestamp) return;
+        
+        // Konversi object ke array
+        const entries = Object.entries(fbAntrian)
+            .filter(([key]) => key !== '_meta')
+            .map(([nomor, item]) => ({
+                nomor: nomor,
+                ...item
+            }));
+        
+        if (entries.length === 0) return;
+        
+        // Urutkan berdasarkan nomor
+        entries.sort((a, b) => parseInt(a.nomor) - parseInt(b.nomor));
+        
+        antrian = entries;
+        nomorTerakhir = antrian.length;
+        
+        // Load masterPeserta jika ada
+        if (data.masterPeserta && data.masterPeserta.length > 0) {
+            masterPeserta = data.masterPeserta;
+            simpanSuggestionKeLocalStorage();
+            updateDatabaseStatus();
+        }
+        
+        renderTabel();
+        simpanKeLocalStorage();
+        localStorage.setItem('antrianLastUpdated', fbTimestamp);
+        
+        console.log(`📥 Loaded ${antrian.length} antrian dari Firebase`);
     }, (error) => {
         console.error('Firebase error:', error);
     });
@@ -1228,6 +1625,49 @@ function loadAdminPassword() {
     });
 }
 
+
+function simpanAntrianKeFirebase(nip, nama, bagian, nomorBaru) {
+    const data = {
+        nip,
+        nama,
+        bagian,
+        status: 'Menunggu',
+        timestamp: firebase.database.ServerValue.TIMESTAMP
+    };
+    
+    // Gunakan nomor sebagai key, bukan push()
+    const updates = {};
+    updates[`antrianData/antrian/${nomorBaru}`] = data;
+    updates['antrianData/nomorTerakhir'] = parseInt(nomorBaru, 10);
+    updates['antrianData/lastUpdated'] = firebase.database.ServerValue.TIMESTAMP;
+    
+    database.ref().update(updates)
+        .then(() => {
+            // Update UI
+            document.getElementById('nomorAntrian').textContent = nomorBaru;
+            document.getElementById('detailAntrian').innerHTML = `<strong>${nama}</strong> · ${bagian}`;
+            const { tanggal, waktu } = formatTanggalWaktu();
+            document.getElementById('tanggalAmbil').textContent = tanggal;
+            document.getElementById('waktuAmbil').textContent = waktu;
+            document.getElementById('ticket').classList.add('show');
+            clearForm();
+            showToast(`🎫 Nomor ${nomorBaru} untuk ${nama}`, 'success');
+            
+            // Auto sync
+            setTimeout(() => {
+                if (!isSyncing) autoSync();
+            }, 500);
+        })
+        .catch(err => {
+            showToast('⚠️ Gagal menyimpan ke Firebase: ' + err.message, 'error');
+            console.error(err);
+            // Rollback
+            antrian = antrian.filter(a => a.nip !== nip);
+            renderTabel();
+            simpanKeLocalStorage();
+        });
+}
+
 // ============================================================
 // INIT
 // ============================================================
@@ -1240,12 +1680,19 @@ window.onload = function() {
     const hasAntrian = loadDariLocalStorage();
     if (!hasAntrian) { antrian = []; nomorTerakhir = 0; }
     updateDatabaseStatus();
-    updateJadwalUI();
+    
+    // 🔥 LOAD JADWAL DARI FIREBASE
+    if (firebaseEnabled) {
+        loadJadwalFromFirebase();
+    } else {
+        renderJadwalUI();
+    }
+    
     currentPageAdmin = 1;
     renderTabel();
+    
     if (firebaseEnabled) {
         loadFromFirebase();
-        loadJadwalFromFirebase();
         loadAdminPassword();
         setInterval(() => { if (!isSyncing) autoSync(); }, 30000);
         setTimeout(() => { if (!isSyncing) autoSync(); }, 5000);
